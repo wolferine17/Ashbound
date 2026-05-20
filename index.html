@@ -10,6 +10,9 @@
 <script src="data/spirit-imgs.js"></script>
 <script src="data/emblems.js"></script>
 <script src="data/sound-manager.js"></script>
+<!-- Three.js (UMD global build, pinned r128 — no build step, exposes window.THREE).
+     Used only for the animated 3D battlefield behind the s-battle screen. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 /* ── TOKENS ─────────────────────────────────────────────── */
 :root {
@@ -625,9 +628,37 @@ img.col-portrait { max-width:120px; max-height:120px; }
 .mp-opponent.empty { opacity:0.55; }
 .mp-vs { font-family:var(--font-d); font-size:14px; letter-spacing:3px; color:var(--muted); }
 
+/* ── 3D BATTLEFIELD CANVAS (behind s-battle only) ─────────── */
+#bg3d {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;            /* behind every screen/UI element */
+  display: none;         /* shown only while the battle screen is active */
+  pointer-events: none;  /* never intercept clicks */
+}
+/* While the 3D scene is active, let it show through the battle screen. */
+body.battle-3d-active #s-battle { background: transparent; z-index: 1; }
+/* Repurpose the battle screen's ::before into an edge vignette so UI text
+   stays readable over the bright animated scene (center stays clear). */
+body.battle-3d-active #s-battle::before {
+  background: radial-gradient(ellipse 92% 84% at 50% 50%, transparent 42%, rgba(8,5,16,0.58) 100%);
+}
+/* Small legibility boost for the thin uppercase labels over the 3D scene. */
+body.battle-3d-active .battle-label,
+body.battle-3d-active .turn-label,
+body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
+/* Disable the canvas entirely on small screens (perf + layout safety). */
+@media (max-width: 767px) { #bg3d { display: none !important; } }
+
 </style>
 </head>
 <body>
+
+<!-- 3D battlefield canvas — only visible behind the s-battle screen.
+     Fixed, lowest z-index, no pointer events. Driven by the module at end of body. -->
+<canvas id="bg3d"></canvas>
 
 <!-- INTRO OVERLAY (full-screen, removed after sequence) -->
 <div class="intro-overlay" id="intro-overlay">
@@ -5138,6 +5169,438 @@ boot();
   <div class="chars-filter" id="chars-filter"></div>
   <div class="chars-grid" id="chars-grid"></div>
 </div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     3D BATTLEFIELD (Three.js) — fully self-contained, additive module.
+     Renders an animated dark-fantasy arena behind the #s-battle screen only.
+     Touches NO game logic: it watches #s-battle's class via MutationObserver
+     and starts/stops its own render loop accordingly. Disabled on mobile.
+     ════════════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+  if (typeof THREE === 'undefined') {
+    console.warn('[bg3d] Three.js not available — 3D battlefield disabled, game unaffected.');
+    return;
+  }
+  var MOBILE_BP = 768;
+  var canvas = document.getElementById('bg3d');
+  var battleEl = document.getElementById('s-battle');
+  if (!canvas || !battleEl) return;
+
+  var renderer, scene, camera, clock;
+  var rafId = null, built = false, active = false;
+  var camAngle = 0;
+  var lightningLight, skyMat, cloudsMesh, fogPlanes = [], runeMeshes = [];
+  var particles = null, pData = [], pDummy = null;
+  var lightningTimer = 0, nextLightningIn = 2.5;
+  var PCOUNT = 150;
+
+  function isMobile() { return window.innerWidth < MOBILE_BP; }
+
+  // ── Procedural texture helpers ──────────────────────────────────────
+  // Cracked dark-stone albedo on a 2D canvas (returned so we can derive a normal map).
+  function makeStoneCanvas(size) {
+    size = size || 512;
+    var c = document.createElement('canvas'); c.width = c.height = size;
+    var x = c.getContext('2d');
+    x.fillStyle = '#1b1530'; x.fillRect(0, 0, size, size);
+    // mottled grain
+    for (var i = 0; i < 11000; i++) {
+      var px = Math.random() * size, py = Math.random() * size, r = Math.random() * 2.4;
+      var v = 24 + Math.random() * 46;
+      x.fillStyle = 'rgba(' + (v) + ',' + ((v * 0.82) | 0) + ',' + ((v * 1.15) | 0) + ',0.06)';
+      x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    }
+    // tile seams
+    x.strokeStyle = 'rgba(0,0,0,0.5)'; x.lineWidth = 3;
+    var step = size / 4;
+    for (var gx = step; gx < size; gx += step) {
+      x.beginPath();
+      var jitter = (Math.random() - 0.5) * 10;
+      x.moveTo(gx + jitter, 0); x.lineTo(gx - jitter, size); x.stroke();
+      x.beginPath(); x.moveTo(0, gx + jitter); x.lineTo(size, gx - jitter); x.stroke();
+    }
+    // irregular cracks
+    x.lineWidth = 2;
+    for (var k = 0; k < 30; k++) {
+      x.strokeStyle = 'rgba(0,0,0,' + (0.35 + Math.random() * 0.4) + ')';
+      x.beginPath();
+      var cx = Math.random() * size, cy = Math.random() * size;
+      x.moveTo(cx, cy);
+      var segs = 3 + (Math.random() * 5 | 0);
+      for (var s = 0; s < segs; s++) { cx += (Math.random() - 0.5) * 130; cy += (Math.random() - 0.5) * 130; x.lineTo(cx, cy); }
+      x.stroke();
+    }
+    // faint arcane glow seeping from a few cracks
+    for (var g = 0; g < 60; g++) {
+      var teal = Math.random() < 0.5;
+      x.fillStyle = teal ? 'rgba(61,232,197,0.10)' : 'rgba(232,197,106,0.09)';
+      var gx2 = Math.random() * size, gy2 = Math.random() * size, gr = 6 + Math.random() * 16;
+      var grad = x.createRadialGradient(gx2, gy2, 0, gx2, gy2, gr);
+      grad.addColorStop(0, teal ? 'rgba(61,232,197,0.22)' : 'rgba(232,197,106,0.20)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = grad; x.beginPath(); x.arc(gx2, gy2, gr, 0, Math.PI * 2); x.fill();
+    }
+    return c;
+  }
+
+  // Derive a tangent-space normal map from a grayscale-height reading of a canvas (Sobel-ish).
+  function heightToNormal(srcCanvas, strength) {
+    strength = strength || 2.2;
+    var size = srcCanvas.width;
+    var src = srcCanvas.getContext('2d').getImageData(0, 0, size, size).data;
+    var out = document.createElement('canvas'); out.width = out.height = size;
+    var octx = out.getContext('2d');
+    var dst = octx.createImageData(size, size);
+    function lum(ix, iy) {
+      ix = (ix + size) % size; iy = (iy + size) % size;
+      var i = (iy * size + ix) * 4;
+      return (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255;
+    }
+    for (var y = 0; y < size; y++) for (var xx = 0; xx < size; xx++) {
+      var dx = (lum(xx - 1, y) - lum(xx + 1, y)) * strength;
+      var dy = (lum(xx, y - 1) - lum(xx, y + 1)) * strength;
+      var nz = 1, len = Math.sqrt(dx * dx + dy * dy + nz * nz) || 1;
+      var di = (y * size + xx) * 4;
+      dst.data[di] = (dx / len * 0.5 + 0.5) * 255;
+      dst.data[di + 1] = (dy / len * 0.5 + 0.5) * 255;
+      dst.data[di + 2] = (nz / len * 0.5 + 0.5) * 255;
+      dst.data[di + 3] = 255;
+    }
+    octx.putImageData(dst, 0, 0);
+    var tex = new THREE.CanvasTexture(out);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  // Glowing concentric arcane circle (transparent background) for the floor.
+  function makeRuneTexture() {
+    var size = 512, c = document.createElement('canvas'); c.width = c.height = size;
+    var x = c.getContext('2d'); var cx = size / 2, cy = size / 2;
+    x.clearRect(0, 0, size, size);
+    x.strokeStyle = 'rgba(61,232,197,0.9)'; x.lineWidth = 3;
+    function circle(r) { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); }
+    circle(size * 0.46); circle(size * 0.40);
+    x.strokeStyle = 'rgba(232,197,106,0.85)';
+    circle(size * 0.30); circle(size * 0.16);
+    // radial ticks
+    x.strokeStyle = 'rgba(61,232,197,0.7)'; x.lineWidth = 2;
+    for (var i = 0; i < 24; i++) {
+      var a = (i / 24) * Math.PI * 2;
+      x.beginPath();
+      x.moveTo(cx + Math.cos(a) * size * 0.40, cy + Math.sin(a) * size * 0.40);
+      x.lineTo(cx + Math.cos(a) * size * 0.46, cy + Math.sin(a) * size * 0.46);
+      x.stroke();
+    }
+    // glyph marks around the inner ring
+    x.fillStyle = 'rgba(232,197,106,0.8)';
+    for (var j = 0; j < 8; j++) {
+      var ga = (j / 8) * Math.PI * 2;
+      var gx = cx + Math.cos(ga) * size * 0.23, gy = cy + Math.sin(ga) * size * 0.23;
+      x.save(); x.translate(gx, gy); x.rotate(ga);
+      x.fillRect(-5, -10, 10, 20); x.restore();
+    }
+    var tex = new THREE.CanvasTexture(c);
+    return tex;
+  }
+
+  // Soft cloud/noise texture for the storm dome.
+  function makeCloudTexture() {
+    var size = 512, c = document.createElement('canvas'); c.width = c.height = size;
+    var x = c.getContext('2d');
+    x.fillStyle = 'rgba(0,0,0,0)'; x.clearRect(0, 0, size, size);
+    for (var i = 0; i < 90; i++) {
+      var px = Math.random() * size, py = Math.random() * size;
+      var r = 30 + Math.random() * 90;
+      var a = 0.04 + Math.random() * 0.08;
+      var g = x.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, 'rgba(180,170,210,' + a + ')');
+      g.addColorStop(1, 'rgba(20,14,36,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    }
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  // Vertical sky gradient with subtle horizon glow.
+  function makeSkyTexture() {
+    var w = 16, h = 256, c = document.createElement('canvas'); c.width = w; c.height = h;
+    var x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0.0, '#08060f');   // top: near black
+    g.addColorStop(0.45, '#160d2e');  // deep purple
+    g.addColorStop(0.78, '#241742');  // purple
+    g.addColorStop(0.92, '#12303a');  // teal horizon haze
+    g.addColorStop(1.0, '#0a1a22');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    var tex = new THREE.CanvasTexture(c);
+    return tex;
+  }
+
+  // Soft radial blob for ground fog planes.
+  function makeFogTexture() {
+    var size = 256, c = document.createElement('canvas'); c.width = c.height = size;
+    var x = c.getContext('2d');
+    var g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(150,130,190,0.5)');
+    g.addColorStop(0.6, 'rgba(90,74,130,0.22)');
+    g.addColorStop(1, 'rgba(40,30,60,0)');
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    var tex = new THREE.CanvasTexture(c);
+    return tex;
+  }
+
+  // ── Scene construction (lazy, one-time) ─────────────────────────────
+  function build() {
+    built = true;
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x140a24, 0.018);
+    clock = new THREE.Clock();
+
+    camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
+    camera.position.set(0, 14, 36);
+    camera.lookAt(0, 5, 0);
+
+    // Lighting — low ambient + teal & gold key lights for arcane mood.
+    scene.add(new THREE.AmbientLight(0x3a2a55, 0.7));
+    var tealL = new THREE.PointLight(0x3de8c5, 1.2, 160, 2); tealL.position.set(-20, 18, 14); scene.add(tealL);
+    var goldL = new THREE.PointLight(0xe8c56a, 1.0, 160, 2); goldL.position.set(22, 14, -10); scene.add(goldL);
+    var fill = new THREE.DirectionalLight(0x6a4fa0, 0.35); fill.position.set(0, 30, 20); scene.add(fill);
+    lightningLight = new THREE.DirectionalLight(0xcfe0ff, 0.0); lightningLight.position.set(10, 50, -30); scene.add(lightningLight);
+
+    buildFloor();
+    buildPillars();
+    buildSky();
+    buildClouds();
+    buildGroundFog();
+    buildParticles();
+  }
+
+  function buildFloor() {
+    var stoneCanvas = makeStoneCanvas(512);
+    var map = new THREE.CanvasTexture(stoneCanvas);
+    map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(7, 7);
+    if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
+    var normalMap = heightToNormal(stoneCanvas, 2.6); normalMap.repeat.set(7, 7);
+    var mat = new THREE.MeshStandardMaterial({
+      map: map, normalMap: normalMap, normalScale: new THREE.Vector2(1.1, 1.1),
+      roughness: 0.93, metalness: 0.08, color: 0x8076a0
+    });
+    var floor = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), mat);
+    floor.rotation.x = -Math.PI / 2; floor.position.y = 0;
+    scene.add(floor);
+
+    // Glowing arcane circle laid on the floor (additive, pulses in animate()).
+    var runeTex = makeRuneTexture();
+    var runeMat = new THREE.MeshBasicMaterial({ map: runeTex, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
+    var rune = new THREE.Mesh(new THREE.PlaneGeometry(34, 34), runeMat);
+    rune.rotation.x = -Math.PI / 2; rune.position.y = 0.06;
+    scene.add(rune); runeMeshes.push(rune);
+
+    // Two concentric emissive rings for extra glow.
+    [[14, 0x3de8c5], [20, 0xe8c56a]].forEach(function (r) {
+      var ring = new THREE.Mesh(
+        new THREE.RingGeometry(r[0] * 0.94, r[0], 80),
+        new THREE.MeshBasicMaterial({ color: r[1], transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false })
+      );
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
+      scene.add(ring); runeMeshes.push(ring);
+    });
+  }
+
+  function buildPillars() {
+    var stoneCanvas = makeStoneCanvas(256);
+    var map = new THREE.CanvasTexture(stoneCanvas);
+    map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1, 3);
+    if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
+    var normalMap = heightToNormal(stoneCanvas, 2.0); normalMap.repeat.set(1, 3);
+    var mat = new THREE.MeshStandardMaterial({ map: map, normalMap: normalMap, roughness: 0.95, metalness: 0.06, color: 0x55506e });
+
+    // Ring of broken pillars around the arena, varying height + slight tilt.
+    var count = 9;
+    for (var i = 0; i < count; i++) {
+      var a = (i / count) * Math.PI * 2 + 0.3;
+      var rad = 46 + (i % 3) * 6;
+      var h = 16 + Math.random() * 26;
+      var px = Math.cos(a) * rad, pz = Math.sin(a) * rad;
+      var p = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, h, 10, 1), mat);
+      p.position.set(px, h / 2 - 2, pz);
+      p.rotation.z = (Math.random() - 0.5) * 0.12;
+      p.rotation.y = Math.random() * Math.PI;
+      scene.add(p);
+      // jagged broken cap
+      var cap = new THREE.Mesh(new THREE.ConeGeometry(2.2, 3.5, 7, 1), mat);
+      cap.position.set(px, h - 2.5, pz);
+      cap.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI, (Math.random() - 0.5) * 0.5);
+      scene.add(cap);
+    }
+  }
+
+  function buildSky() {
+    var skyTex = makeSkyTexture();
+    skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false });
+    var sky = new THREE.Mesh(new THREE.SphereGeometry(280, 32, 16), skyMat);
+    scene.add(sky);
+  }
+
+  function buildClouds() {
+    var cloudTex = makeCloudTexture(); cloudTex.repeat.set(4, 2);
+    var mat = new THREE.MeshBasicMaterial({
+      map: cloudTex, transparent: true, opacity: 0.6, side: THREE.BackSide,
+      depthWrite: false, fog: false, color: 0x2c2548, blending: THREE.NormalBlending
+    });
+    cloudsMesh = new THREE.Mesh(new THREE.SphereGeometry(250, 32, 16), mat);
+    cloudsMesh.position.y = 10;
+    scene.add(cloudsMesh);
+  }
+
+  function buildGroundFog() {
+    var fogTex = makeFogTexture();
+    for (var i = 0; i < 4; i++) {
+      var m = new THREE.Mesh(
+        new THREE.PlaneGeometry(150, 150),
+        new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, opacity: 0.16, depthWrite: false, fog: false, color: 0x6a5a8a })
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = 1.5 + i * 1.6;
+      m.userData.spin = (i % 2 ? 1 : -1) * (0.01 + Math.random() * 0.015);
+      scene.add(m); fogPlanes.push(m);
+    }
+  }
+
+  function buildParticles() {
+    if (isMobile()) PCOUNT = 70;
+    var geo = new THREE.TetrahedronGeometry(0.22, 0);
+    var mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, vertexColors: true });
+    particles = new THREE.InstancedMesh(geo, mat, PCOUNT);
+    particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    pDummy = new THREE.Object3D();
+    var teal = new THREE.Color(0x3de8c5), gold = new THREE.Color(0xe8c56a);
+    for (var i = 0; i < PCOUNT; i++) {
+      var d = {
+        x: (Math.random() - 0.5) * 80, y: Math.random() * 46, z: (Math.random() - 0.5) * 80,
+        vy: 1.4 + Math.random() * 2.4, sway: Math.random() * Math.PI * 2,
+        swaySpeed: 0.4 + Math.random() * 0.9, rot: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 1.3, scale: 0.45 + Math.random() * 1.1
+      };
+      pData.push(d);
+      pDummy.position.set(d.x, d.y, d.z); pDummy.scale.setScalar(d.scale); pDummy.updateMatrix();
+      particles.setMatrixAt(i, pDummy.matrix);
+      particles.setColorAt(i, Math.random() < 0.55 ? teal : gold);
+    }
+    if (particles.instanceColor) particles.instanceColor.needsUpdate = true;
+    scene.add(particles);
+  }
+
+  function triggerLightning() {
+    lightningLight.intensity = 2.0 + Math.random() * 1.8;
+    if (skyMat) skyMat.color.setHex(0x4654a0);
+    setTimeout(function () { if (skyMat) skyMat.color.setHex(0xffffff); }, 80);
+    if (Math.random() < 0.45) setTimeout(function () { if (lightningLight) lightningLight.intensity = 1.6; }, 140);
+  }
+
+  function onResize() {
+    if (!renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function animate() {
+    rafId = requestAnimationFrame(animate);
+    var dt = Math.min(clock.getDelta(), 0.05); // clamp to avoid jumps after tab-switch
+    var t = clock.getElapsedTime();
+
+    // Slow orbiting camera drift with gentle vertical bob.
+    camAngle += dt * 0.05;
+    var r = 36;
+    camera.position.x = Math.sin(camAngle) * r;
+    camera.position.z = Math.cos(camAngle) * r;
+    camera.position.y = 13 + Math.sin(t * 0.25) * 1.8;
+    camera.lookAt(0, 5, 0);
+
+    // Drifting clouds.
+    if (cloudsMesh) cloudsMesh.rotation.y += dt * 0.01;
+
+    // Shifting ground fog.
+    for (var f = 0; f < fogPlanes.length; f++) fogPlanes[f].rotation.z += fogPlanes[f].userData.spin * dt;
+
+    // Pulsing runes.
+    for (var u = 0; u < runeMeshes.length; u++) {
+      runeMeshes[u].material.opacity = 0.35 + Math.sin(t * 1.4 + u) * 0.22 + 0.22;
+    }
+
+    // Floating debris.
+    if (particles) {
+      for (var i = 0; i < PCOUNT; i++) {
+        var d = pData[i];
+        d.y += d.vy * dt; d.sway += d.swaySpeed * dt; d.rot += d.rotSpeed * dt;
+        if (d.y > 48) { d.y = -3; d.x = (Math.random() - 0.5) * 80; d.z = (Math.random() - 0.5) * 80; }
+        pDummy.position.set(d.x + Math.sin(d.sway) * 1.6, d.y, d.z + Math.cos(d.sway * 0.7) * 1.6);
+        pDummy.rotation.set(d.rot, d.rot * 0.7, 0);
+        pDummy.scale.setScalar(d.scale);
+        pDummy.updateMatrix();
+        particles.setMatrixAt(i, pDummy.matrix);
+      }
+      particles.instanceMatrix.needsUpdate = true;
+    }
+
+    // Lightning timing + decay.
+    lightningTimer += dt;
+    if (lightningTimer > nextLightningIn) { triggerLightning(); lightningTimer = 0; nextLightningIn = 3 + Math.random() * 6; }
+    if (lightningLight && lightningLight.intensity > 0) {
+      lightningLight.intensity = Math.max(0, lightningLight.intensity - dt * 5.5);
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  // ── Lifecycle ───────────────────────────────────────────────────────
+  function start() {
+    if (isMobile()) return;
+    if (!built) {
+      try { build(); }
+      catch (e) { console.warn('[bg3d] build failed — disabling 3D battlefield.', e); return; }
+    }
+    canvas.style.display = 'block';
+    document.body.classList.add('battle-3d-active');
+    active = true;
+    if (rafId === null) { if (clock) clock.start(); animate(); }
+  }
+
+  function stop() {
+    active = false;
+    canvas.style.display = 'none';
+    document.body.classList.remove('battle-3d-active');
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  // Watch the battle screen's visibility (class toggling) without touching showScreen().
+  var obs = new MutationObserver(function () {
+    var visible = !battleEl.classList.contains('hidden');
+    if (visible && !active) start();
+    else if (!visible && active) stop();
+  });
+  obs.observe(battleEl, { attributes: true, attributeFilter: ['class'] });
+  // In case battle is already visible at module init.
+  if (!battleEl.classList.contains('hidden')) start();
+
+  window.addEventListener('resize', function () {
+    onResize();
+    if (isMobile() && active) stop();
+    else if (!isMobile() && !active && !battleEl.classList.contains('hidden')) start();
+  });
+})();
+</script>
 
 </body>
 </html>
