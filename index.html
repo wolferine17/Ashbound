@@ -5,8 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ashbound</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cinzel+Decorative:wght@700;900&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- GSAP 3.12.2 (used only for purely-visual UI tweens + 3D scene intro). Guarded everywhere. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 <script src="data/spirit-imgs.js"></script>
 <script src="data/emblems.js"></script>
 <script src="data/sound-manager.js"></script>
@@ -14,28 +17,36 @@
      Used only for the animated 3D battlefield behind the s-battle screen. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-/* ── TOKENS ─────────────────────────────────────────────── */
+/* ── TOKENS (remapped to AAA dark-fantasy palette; all original names kept) ── */
 :root {
-  --bg:        #0c0a14;
-  --surface:   #13101f;
-  --surface2:  #1a1628;
-  --border:    rgba(255,255,255,0.10);
-  --text:      #e8e4f0;
-  --muted:     #7a7490;
-  --faint:     #3d3858;
-  --gold:      #e8c56a;
-  --gold-glow: rgba(232,197,106,0.35);
-  --teal:      #3de8c5;
-  --teal-glow: rgba(61,232,197,0.30);
-  --danger:    #e85050;
-  --danger-glow: rgba(232,80,80,0.30);
-  --purple:    #2f0453;
-  --purple-glow: rgba(155,111,232,0.30);
-  --font-d: 'Cinzel', serif;
-  --font-b: 'Inter', sans-serif;
+  --bg:        #05020f;
+  --surface:   #0d0720;
+  --surface2:  #130a2e;
+  --border:    rgba(106,47,255,0.22);
+  --text:      #e8deff;
+  --muted:     #7c6aa8;
+  --faint:     #2a1650;
+  --gold:      #c9a84c;
+  --gold-bright: #f0d080;
+  --gold-glow: rgba(201,168,76,0.4);
+  --teal:      #00e5cc;
+  --teal-glow: rgba(0,229,204,0.32);
+  --danger:    #ff3355;
+  --danger-glow: rgba(255,51,85,0.32);
+  --success:   #00ffaa;
+  --purple:    #8b2fff;          /* brightened so existing var(--purple) text reads */
+  --violet:    #8b2fff;
+  --purple-glow: rgba(139,47,255,0.34);
+  --border-glow: #6a2fff;
+  --font-title: 'Cinzel Decorative', 'Cinzel', serif;  /* hero titles only */
+  --font-d: 'Cinzel', serif;     /* decorative labels (kept legible) */
+  --font-b: 'Rajdhani', 'Inter', sans-serif;
   --r:    8px;
-  --r-lg: 14px;
+  --r-lg: 16px;
   --ease: cubic-bezier(0.16,1,0.3,1);
+  /* reusable glassmorphism surface */
+  --glass-bg: linear-gradient(135deg, rgba(13,7,32,0.85), rgba(20,10,50,0.7));
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(106,47,255,0.08);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width:100%; height:100%; background:var(--bg); color:var(--text); font-family:var(--font-b); font-size:15px; overflow:hidden; }
@@ -649,8 +660,181 @@ body.battle-3d-active #s-battle::before {
 body.battle-3d-active .battle-label,
 body.battle-3d-active .turn-label,
 body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
-/* Disable the canvas entirely on small screens (perf + layout safety). */
-@media (max-width: 767px) { #bg3d { display: none !important; } }
+/* On phones the scene still runs but in a reduced form (handled in JS:
+   fewer particles/stars, 1 cloud layer, no aurora, lower pixel ratio).
+   No CSS force-hide here so the JS can show it. */
+
+/* ════════════════════════════════════════════════════════════════════
+   AAA VISUAL OVERHAUL — appended last so it layers over existing rules.
+   Reuses every existing selector/ID/class; renames nothing.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Global keyframes ─────────────────────────────────────── */
+@keyframes pulseGlow   { 0%,100%{ filter:drop-shadow(0 0 8px var(--gold-glow)); } 50%{ filter:drop-shadow(0 0 22px var(--gold-bright)); } }
+@keyframes floatY      { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-10px); } }
+@keyframes fadeSlideUp { from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:translateY(0); } }
+@keyframes shimmerGold { 0%{ background-position:-200% 0; } 100%{ background-position:200% 0; } }
+@keyframes runeRotate  { to{ transform:rotate(360deg); } }
+@keyframes borderSpin  { to{ transform:rotate(360deg); } }
+@keyframes flicker     { 0%,100%{ opacity:1; } 45%{ opacity:0.78; } 50%{ opacity:1; } 55%{ opacity:0.85; } }
+@keyframes rippleOut   { to{ transform:scale(4); opacity:0; } }
+@keyframes particleDrift { 0%{ transform:translateY(0) translateX(0); opacity:0; } 10%{ opacity:0.8; } 100%{ transform:translateY(-120px) translateX(var(--drx,10px)); opacity:0; } }
+@keyframes energyPulse { 0%,100%{ box-shadow:0 0 8px var(--teal-glow); } 50%{ box-shadow:0 0 18px var(--teal); } }
+@keyframes bgPulse     { 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.18); } }
+@keyframes confettiFall { to{ transform:translate(var(--cx,0), var(--cy,140px)) rotate(var(--cr,540deg)); opacity:0; } }
+
+/* ── Glassmorphism applied to existing panels ─────────────── */
+.auth-card, .home-tile, .col-card, .char-card, .mp-panel, .modal,
+.roster-card, .home-stat, .deck-counter, .lb-table, .profile-card,
+.shop-card, .emblem-card, .case-card {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(106,47,255,0.25);
+  box-shadow: var(--glass-shadow);
+}
+.auth-card, .mp-panel, .modal { border-radius: 18px; }
+
+/* ── Animated conic border glow for hero panels & hovered tiles ── */
+.auth-card, .mp-panel {
+  position: relative; isolation: isolate;
+}
+.auth-card::after, .mp-panel::after {
+  content:''; position:absolute; inset:-2px; border-radius:inherit; z-index:-1;
+  background: conic-gradient(from 0deg, var(--violet), var(--teal), var(--violet), var(--teal), var(--violet));
+  filter: blur(10px); opacity:0.45; animation: borderSpin 7s linear infinite;
+}
+.home-tile { isolation:isolate; }
+.home-tile::after {
+  content:''; position:absolute; inset:-2px; border-radius:inherit; z-index:-1;
+  background: conic-gradient(from 0deg, var(--violet), var(--teal), var(--violet));
+  filter: blur(9px); opacity:0; transition:opacity 0.35s; animation: borderSpin 6s linear infinite;
+}
+.home-tile:hover::after { opacity:0.7; }
+
+/* ── Title screen ─────────────────────────────────────────── */
+#s-title { background: radial-gradient(ellipse 90% 70% at 50% 40%, #1a0a44 0%, var(--bg) 72%); animation: bgPulse 9s ease-in-out infinite; }
+.title-logo, .brand-logo.size-title { filter: drop-shadow(0 0 30px var(--violet)); animation: pulseGlow 4s ease-in-out infinite; }
+.title-sub { color: var(--teal); letter-spacing: 8px; }
+.title-btn, .intro-begin-prompt {
+  background: linear-gradient(135deg, #6a2fff, #3d00cc);
+  border: 1px solid rgba(106,47,255,0.6);
+  box-shadow: 0 0 26px var(--purple-glow), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+/* floating ambient particles container (filled by JS on title) */
+.title-particles { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+.title-particles i { position:absolute; bottom:-10px; width:4px; height:4px; border-radius:50%;
+  background: radial-gradient(circle, var(--teal), transparent 70%); opacity:0; animation: particleDrift linear infinite; }
+
+/* ── Auth ─────────────────────────────────────────────────── */
+.auth-card { padding: 30px 28px; }
+.auth-sub { color: var(--teal); letter-spacing: 4px; }
+.auth-row input {
+  background: rgba(5,2,15,0.6); border:1px solid var(--border); color: var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.auth-row input:focus { outline:none; border-color: var(--teal); box-shadow: 0 0 0 2px rgba(0,229,204,0.18), 0 0 16px var(--teal-glow); }
+.auth-tabs { position:relative; }
+.auth-tab.active { color: var(--teal); }
+
+/* ── Buttons: unified AAA system (keeps existing class names) ── */
+.title-btn, .btn-end, .result-btn, .auth-btn, .draft-confirm,
+.filter-btn, .btn-back, .btn-forfeit, .btn-cancel, .case-buy, .shop-buy {
+  position: relative; overflow: hidden;
+  font-family: var(--font-b); text-transform: uppercase; font-weight: 700; letter-spacing: 2px;
+  transition: transform 0.18s var(--ease), box-shadow 0.25s var(--ease), border-color 0.2s, background 0.2s;
+}
+.title-btn:hover, .btn-end:hover:not(:disabled), .result-btn:hover, .auth-btn:hover:not(:disabled), .draft-confirm:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.03);
+}
+.auth-btn { background: linear-gradient(135deg, #6a2fff, #3d00cc); border:1px solid rgba(106,47,255,0.55); box-shadow:0 0 22px var(--purple-glow); }
+.draft-confirm { background: linear-gradient(135deg, var(--gold-bright), #8a6a1a); color:#1a1206; box-shadow:0 0 24px var(--gold-glow); }
+/* click ripple element injected by JS */
+.btn-ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,0.35); transform:scale(0); animation: rippleOut 0.6s ease-out forwards; pointer-events:none; width:120px; height:120px; margin:-60px 0 0 -60px; }
+
+/* ── Home / rank badge tiers ──────────────────────────────── */
+#s-home { background: radial-gradient(ellipse 90% 70% at 50% 25%, #18093c 0%, var(--bg) 70%); }
+.home-brand { background: linear-gradient(135deg, var(--gold-bright), #fff0c0, var(--gold)); -webkit-background-clip:text; background-clip:text; filter: drop-shadow(0 0 14px var(--gold-glow)); }
+.home-tile-ic { filter: drop-shadow(0 0 10px var(--purple-glow)); transition: transform 0.3s var(--ease); }
+.home-tile:hover .home-tile-ic { transform: scale(1.15) translateY(-2px); }
+.rank-tier-bronze    { color:#cd7f32 !important; filter:drop-shadow(0 0 8px rgba(205,127,50,0.6)); }
+.rank-tier-silver    { color:#c0c0c0 !important; filter:drop-shadow(0 0 8px rgba(192,192,192,0.6)); }
+.rank-tier-gold      { color:#ffd700 !important; filter:drop-shadow(0 0 10px rgba(255,215,0,0.7)); }
+.rank-tier-platinum  { color:#e5e4e2 !important; filter:drop-shadow(0 0 10px rgba(229,228,226,0.7)); }
+.rank-tier-diamond   { color:#b9f2ff !important; filter:drop-shadow(0 0 12px rgba(185,242,255,0.8)); animation:pulseGlow 3s ease-in-out infinite; }
+.rank-tier-ascendant { color:#c084fc !important; filter:drop-shadow(0 0 12px rgba(192,132,252,0.8)); }
+.rank-tier-ethereal  { background:linear-gradient(90deg,#ff6ec7,#00e5cc,#8b2fff,#ff6ec7); background-size:300% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmerGold 4s linear infinite; }
+
+/* ── Battle: portraits, HP, energy gems, cards ────────────── */
+.combatant .spirit-portrait, .combatant .c-emoji {
+  border-radius: 14px;
+  box-shadow: 0 0 0 2px rgba(106,47,255,0.5), 0 0 18px rgba(106,47,255,0.35), inset 0 0 12px rgba(0,0,0,0.5);
+  transition: box-shadow 0.4s var(--ease), filter 0.3s;
+}
+.combatant.clickable:hover .spirit-portrait { box-shadow: 0 0 0 2px var(--teal), 0 0 26px var(--teal-glow); }
+.combatant.dead { opacity:0.4 !important; }
+.combatant.dead .spirit-portrait, .combatant.dead .c-emoji { filter: grayscale(1) brightness(0.6); }
+.combatant.dead::after {
+  content:''; position:absolute; top:0; left:0; right:0; height:78px;
+  background: linear-gradient(135deg, transparent 44%, var(--danger) 47%, var(--danger) 53%, transparent 56%);
+  opacity:0.8; pointer-events:none; border-radius:14px;
+}
+.c-hp-bar { height:9px; border-radius:5px; background:rgba(5,2,15,0.7); box-shadow: inset 0 0 4px rgba(0,0,0,0.8); border:1px solid rgba(106,47,255,0.25); }
+.c-hp-fill { box-shadow: 0 0 10px currentColor; }
+.c-name { font-family: var(--font-d); }
+.battle-label, .turn-label { font-family: var(--font-d); }
+.turn-label { font-size:14px; padding:4px 16px; border-radius:50px; }
+/* energy "gems" — rotated gradient squares */
+.energy-orb { width:16px; height:16px; border-radius:4px; transform: rotate(45deg); background: linear-gradient(135deg, #1a1238, #0d0720); border:1px solid var(--faint); }
+.energy-orb.active { background: linear-gradient(135deg, #a0ffe8, var(--teal)); border-color: var(--teal); animation: energyPulse 2s ease-in-out infinite; }
+.energy-orb.regen  { background: linear-gradient(135deg, #c8e0ff, var(--violet)); border-color: var(--violet); box-shadow:0 0 10px var(--purple-glow); }
+/* hand 3D lift */
+.hand-area { perspective: 900px; }
+.card {
+  background: var(--glass-bg); border:1px solid rgba(106,47,255,0.3);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  transform-style: preserve-3d;
+}
+.card:hover:not(.card-disabled) { transform: translateY(-16px) scale(1.1) rotateX(6deg); box-shadow: 0 18px 40px rgba(0,0,0,0.7), 0 0 22px var(--purple-glow); z-index:20; }
+.card.card-selected { border-color: var(--gold); box-shadow: 0 0 20px var(--gold-glow); animation: floatY 2.4s ease-in-out infinite; }
+.card-cost { background: radial-gradient(circle at 38% 32%, var(--violet), #2d0a66); color:#fff; box-shadow:0 0 8px var(--purple-glow); border:1px solid rgba(255,255,255,0.2); }
+.card-name { font-family: var(--font-d); color: var(--gold-bright); }
+/* battle log entries slide in */
+.battle-log { background: linear-gradient(135deg, rgba(8,4,20,0.7), rgba(16,8,40,0.55)); backdrop-filter: blur(10px); border:1px solid rgba(106,47,255,0.25); }
+.battle-log p { animation: fadeSlideUp 0.3s var(--ease); }
+
+/* ── Result screen ────────────────────────────────────────── */
+#s-result { background: radial-gradient(ellipse 90% 70% at 50% 40%, #18093c 0%, var(--bg) 72%); }
+.result-title { font-family: var(--font-title); font-size: clamp(3rem, 8vw, 5.5rem); }
+.result-title.win {
+  background: linear-gradient(90deg, var(--gold), #fff0c0, var(--gold-bright), #fff0c0, var(--gold));
+  background-size: 300% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 0 26px var(--gold-glow)); animation: shimmerGold 3s linear infinite;
+}
+.result-title.lose { color: var(--danger); filter: drop-shadow(0 0 24px var(--danger-glow)); }
+#result-defeat-vignette { position:fixed; inset:0; pointer-events:none; z-index:1; opacity:0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(140,0,20,0.5) 100%); transition:opacity 0.8s; }
+.confetti-piece { position:fixed; width:9px; height:14px; top:40%; left:50%; z-index:550; pointer-events:none; border-radius:2px; animation: confettiFall 1.6s ease-in forwards; }
+
+/* ── Leaderboard ──────────────────────────────────────────── */
+.lb-row { transition: background 0.2s, box-shadow 0.2s; position:relative; }
+.lb-row.head { background: linear-gradient(90deg, rgba(106,47,255,0.18), transparent); font-family:var(--font-d); letter-spacing:2px; color:var(--teal); }
+.lb-row:not(.head):hover { background: rgba(106,47,255,0.12); box-shadow: inset 3px 0 0 var(--violet); }
+.lb-row.me { box-shadow: inset 0 0 0 1px var(--teal), 0 0 16px var(--teal-glow); border-radius:8px; }
+
+/* ── Multiplayer lobby ────────────────────────────────────── */
+.mp-code-box, .mp-room-code, #mp-room-code, .mp-code {
+  font-family: var(--font-title); letter-spacing: 10px; color: var(--teal);
+  text-shadow: 0 0 18px var(--teal-glow); animation: flicker 4s ease-in-out infinite;
+}
+.mp-panel-title { font-family: var(--font-d); color: var(--gold-bright); letter-spacing:2px; }
+
+/* ── Screen entrance: add a gentle rise to the opacity fade ── */
+.screen { transition: opacity 0.4s var(--ease), transform 0.4s var(--ease); }
+.screen.hidden { transform: translateY(12px); }
+
+/* ── Tooltip & toast polished glass ───────────────────────── */
+#tooltip, .toast { background: var(--glass-bg); backdrop-filter: blur(16px) saturate(180%); border:1px solid rgba(106,47,255,0.35); }
 
 </style>
 </head>
@@ -5171,10 +5355,10 @@ boot();
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
-     3D BATTLEFIELD (Three.js) — fully self-contained, additive module.
-     Renders an animated dark-fantasy arena behind the #s-battle screen only.
-     Touches NO game logic: it watches #s-battle's class via MutationObserver
-     and starts/stops its own render loop accordingly. Disabled on mobile.
+     3D BATTLEFIELD (Three.js) — full visual overhaul. Self-contained,
+     additive module. Reads game state (G/CLASSES/SPIRIT_IMGS) READ-ONLY to
+     render spirit billboards; touches no game logic. Watches #s-battle via
+     MutationObserver and runs its own loop only while that screen is visible.
      ════════════════════════════════════════════════════════════════════ -->
 <script>
 (function () {
@@ -5183,397 +5367,776 @@ boot();
     console.warn('[bg3d] Three.js not available — 3D battlefield disabled, game unaffected.');
     return;
   }
+
+  // ── Config ──────────────────────────────────────────────────────────
+  var ENABLE_SHADOWS = false;        // flip true only if perf allows
   var MOBILE_BP = 768;
   var canvas = document.getElementById('bg3d');
   var battleEl = document.getElementById('s-battle');
   if (!canvas || !battleEl) return;
 
+  // ── Safe accessors for game state (READ ONLY — never mutate) ─────────
+  function getG()        { try { return G; }           catch (e) { return null; } }
+  function getClasses()  { try { return CLASSES; }     catch (e) { return null; } }
+  function getSpiritImgs(){ try { return SPIRIT_IMGS; } catch (e) { return null; } }
+
+  // ── Module state ─────────────────────────────────────────────────────
   var renderer, scene, camera, clock;
   var rafId = null, built = false, active = false;
   var camAngle = 0;
-  var lightningLight, skyMat, cloudsMesh, fogPlanes = [], runeMeshes = [];
-  var particles = null, pData = [], pDummy = null;
-  var lightningTimer = 0, nextLightningIn = 2.5;
-  var PCOUNT = 150;
+  var mobile = window.innerWidth < MOBILE_BP;
+
+  var skyMatList = [];      // ShaderMaterials needing uTime
+  var auroraMat = null, starsMat = null;
+  var floorMat = null, runeMeshes = [], fogMats = [];
+  var debris = null, debrisData = [], debrisDummy = null, DEBRIS_N = 42;
+  var orbitA, orbitB, lightningLight, entryFlash, spotLight;
+  var lightningTimer = 0, nextLightningIn = 4 + Math.random() * 6;
+  var envMap = null, texLoader = null;
+  var boltGroup = null;        // active lightning bolt meshes (disposed after fade)
+  var bolts = [];              // { meshes:[], life, max }
+  var camShake = 0;            // current camera-shake impulse (decays)
+  var introFovT = -1;          // >=0 while the battle-start FOV pull-back is animating
+  var audioCtx = null;         // lazy Web Audio context for thunder
+
+  // Spirit billboards
+  var spiritGroup = null;      // container for all spirit groups + halos
+  var deathBits = [];          // { mesh, vx,vy,vz, life }
+  var billboards = [];         // { group, halo, side, idx, baseY, phase, delay, riseT, risen, flashed, dead, deadT }
+  var battleEpoch = 0;         // invalidates async texture loads across battles
+  var RISE_DUR = 1.2, STAGGER = 0.15;
 
   function isMobile() { return window.innerWidth < MOBILE_BP; }
 
-  // ── Procedural texture helpers ──────────────────────────────────────
-  // Cracked dark-stone albedo on a 2D canvas (returned so we can derive a normal map).
+  // ── Inline GLSL: simplex noise + fbm (Ashima/Gustavson) ──────────────
+  var NOISE = [
+    'vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}',
+    'vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}',
+    'vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}',
+    'vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}',
+    'float snoise(vec3 v){',
+    '  const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);',
+    '  vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);',
+    '  vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);',
+    '  vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;',
+    '  i=mod289(i);',
+    '  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));',
+    '  float n_=0.142857142857;vec3 ns=n_*D.wyz-D.xzx;',
+    '  vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);',
+    '  vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);',
+    '  vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);',
+    '  vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));',
+    '  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;',
+    '  vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);',
+    '  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));',
+    '  p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;',
+    '  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;',
+    '  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));',
+    '}',
+    'float fbm(vec3 p){float f=0.0;float a=0.5;for(int i=0;i<3;i++){f+=a*snoise(p);p*=2.02;a*=0.5;}return f;}'
+  ].join('\n');
+
+  // ── Canvas-based texture helpers ─────────────────────────────────────
   function makeStoneCanvas(size) {
     size = size || 512;
     var c = document.createElement('canvas'); c.width = c.height = size;
     var x = c.getContext('2d');
-    x.fillStyle = '#1b1530'; x.fillRect(0, 0, size, size);
-    // mottled grain
-    for (var i = 0; i < 11000; i++) {
-      var px = Math.random() * size, py = Math.random() * size, r = Math.random() * 2.4;
-      var v = 24 + Math.random() * 46;
-      x.fillStyle = 'rgba(' + (v) + ',' + ((v * 0.82) | 0) + ',' + ((v * 1.15) | 0) + ',0.06)';
-      x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#15102a'; x.fillRect(0, 0, size, size);
+    for (var i = 0; i < 9000; i++) {
+      var v = 18 + Math.random() * 40;
+      x.fillStyle = 'rgba(' + (v | 0) + ',' + ((v * 0.8) | 0) + ',' + ((v * 1.2) | 0) + ',0.05)';
+      x.beginPath(); x.arc(Math.random() * size, Math.random() * size, Math.random() * 2.2, 0, 6.283); x.fill();
     }
-    // tile seams
-    x.strokeStyle = 'rgba(0,0,0,0.5)'; x.lineWidth = 3;
-    var step = size / 4;
-    for (var gx = step; gx < size; gx += step) {
+    x.strokeStyle = 'rgba(0,0,0,0.45)'; x.lineWidth = 2;
+    for (var k = 0; k < 26; k++) {
       x.beginPath();
-      var jitter = (Math.random() - 0.5) * 10;
-      x.moveTo(gx + jitter, 0); x.lineTo(gx - jitter, size); x.stroke();
-      x.beginPath(); x.moveTo(0, gx + jitter); x.lineTo(size, gx - jitter); x.stroke();
-    }
-    // irregular cracks
-    x.lineWidth = 2;
-    for (var k = 0; k < 30; k++) {
-      x.strokeStyle = 'rgba(0,0,0,' + (0.35 + Math.random() * 0.4) + ')';
-      x.beginPath();
-      var cx = Math.random() * size, cy = Math.random() * size;
-      x.moveTo(cx, cy);
-      var segs = 3 + (Math.random() * 5 | 0);
-      for (var s = 0; s < segs; s++) { cx += (Math.random() - 0.5) * 130; cy += (Math.random() - 0.5) * 130; x.lineTo(cx, cy); }
+      var cx = Math.random() * size, cy = Math.random() * size; x.moveTo(cx, cy);
+      var segs = 3 + (Math.random() * 4 | 0);
+      for (var s = 0; s < segs; s++) { cx += (Math.random() - 0.5) * 120; cy += (Math.random() - 0.5) * 120; x.lineTo(cx, cy); }
       x.stroke();
-    }
-    // faint arcane glow seeping from a few cracks
-    for (var g = 0; g < 60; g++) {
-      var teal = Math.random() < 0.5;
-      x.fillStyle = teal ? 'rgba(61,232,197,0.10)' : 'rgba(232,197,106,0.09)';
-      var gx2 = Math.random() * size, gy2 = Math.random() * size, gr = 6 + Math.random() * 16;
-      var grad = x.createRadialGradient(gx2, gy2, 0, gx2, gy2, gr);
-      grad.addColorStop(0, teal ? 'rgba(61,232,197,0.22)' : 'rgba(232,197,106,0.20)');
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      x.fillStyle = grad; x.beginPath(); x.arc(gx2, gy2, gr, 0, Math.PI * 2); x.fill();
     }
     return c;
   }
 
-  // Derive a tangent-space normal map from a grayscale-height reading of a canvas (Sobel-ish).
   function heightToNormal(srcCanvas, strength) {
     strength = strength || 2.2;
     var size = srcCanvas.width;
     var src = srcCanvas.getContext('2d').getImageData(0, 0, size, size).data;
     var out = document.createElement('canvas'); out.width = out.height = size;
-    var octx = out.getContext('2d');
-    var dst = octx.createImageData(size, size);
-    function lum(ix, iy) {
-      ix = (ix + size) % size; iy = (iy + size) % size;
-      var i = (iy * size + ix) * 4;
-      return (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255;
-    }
+    var octx = out.getContext('2d'); var dst = octx.createImageData(size, size);
+    function lum(ix, iy) { ix = (ix + size) % size; iy = (iy + size) % size; var i = (iy * size + ix) * 4; return (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255; }
     for (var y = 0; y < size; y++) for (var xx = 0; xx < size; xx++) {
       var dx = (lum(xx - 1, y) - lum(xx + 1, y)) * strength;
       var dy = (lum(xx, y - 1) - lum(xx, y + 1)) * strength;
-      var nz = 1, len = Math.sqrt(dx * dx + dy * dy + nz * nz) || 1;
-      var di = (y * size + xx) * 4;
-      dst.data[di] = (dx / len * 0.5 + 0.5) * 255;
-      dst.data[di + 1] = (dy / len * 0.5 + 0.5) * 255;
-      dst.data[di + 2] = (nz / len * 0.5 + 0.5) * 255;
-      dst.data[di + 3] = 255;
+      var nz = 1, len = Math.sqrt(dx * dx + dy * dy + nz * nz) || 1, di = (y * size + xx) * 4;
+      dst.data[di] = (dx / len * 0.5 + 0.5) * 255; dst.data[di + 1] = (dy / len * 0.5 + 0.5) * 255;
+      dst.data[di + 2] = (nz / len * 0.5 + 0.5) * 255; dst.data[di + 3] = 255;
     }
     octx.putImageData(dst, 0, 0);
-    var tex = new THREE.CanvasTexture(out);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    return tex;
+    var tex = new THREE.CanvasTexture(out); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
   }
 
-  // Glowing concentric arcane circle (transparent background) for the floor.
-  function makeRuneTexture() {
-    var size = 512, c = document.createElement('canvas'); c.width = c.height = size;
+  // Arcane runes + concentric ring bands on a transparent canvas (emissive map).
+  function makeRuneCanvas() {
+    var size = 1024, c = document.createElement('canvas'); c.width = c.height = size;
     var x = c.getContext('2d'); var cx = size / 2, cy = size / 2;
     x.clearRect(0, 0, size, size);
-    x.strokeStyle = 'rgba(61,232,197,0.9)'; x.lineWidth = 3;
-    function circle(r) { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); }
-    circle(size * 0.46); circle(size * 0.40);
-    x.strokeStyle = 'rgba(232,197,106,0.85)';
-    circle(size * 0.30); circle(size * 0.16);
-    // radial ticks
-    x.strokeStyle = 'rgba(61,232,197,0.7)'; x.lineWidth = 2;
-    for (var i = 0; i < 24; i++) {
-      var a = (i / 24) * Math.PI * 2;
+    x.lineCap = 'round'; x.shadowBlur = 16;
+    function ring(r, col, w) { x.strokeStyle = col; x.shadowColor = col; x.lineWidth = w; x.beginPath(); x.arc(cx, cy, r, 0, 6.283); x.stroke(); }
+    var teal = 'rgba(61,232,197,0.95)', gold = 'rgba(232,197,106,0.95)';
+    ring(size * 0.46, teal, 4); ring(size * 0.44, teal, 2);
+    ring(size * 0.34, gold, 5); ring(size * 0.20, teal, 4); ring(size * 0.10, gold, 3);
+    // radial ticks between outer rings
+    x.lineWidth = 3; x.strokeStyle = teal; x.shadowColor = teal;
+    for (var i = 0; i < 48; i++) {
+      var a = (i / 48) * 6.283;
       x.beginPath();
-      x.moveTo(cx + Math.cos(a) * size * 0.40, cy + Math.sin(a) * size * 0.40);
-      x.lineTo(cx + Math.cos(a) * size * 0.46, cy + Math.sin(a) * size * 0.46);
+      x.moveTo(cx + Math.cos(a) * size * 0.34, cy + Math.sin(a) * size * 0.34);
+      x.lineTo(cx + Math.cos(a) * size * 0.40, cy + Math.sin(a) * size * 0.40);
       x.stroke();
     }
-    // glyph marks around the inner ring
-    x.fillStyle = 'rgba(232,197,106,0.8)';
-    for (var j = 0; j < 8; j++) {
-      var ga = (j / 8) * Math.PI * 2;
-      var gx = cx + Math.cos(ga) * size * 0.23, gy = cy + Math.sin(ga) * size * 0.23;
+    // runic glyphs (arcs + segments) around the gold ring
+    x.strokeStyle = gold; x.shadowColor = gold; x.lineWidth = 4;
+    for (var g = 0; g < 16; g++) {
+      var ga = (g / 16) * 6.283;
+      var gx = cx + Math.cos(ga) * size * 0.27, gy = cy + Math.sin(ga) * size * 0.27;
       x.save(); x.translate(gx, gy); x.rotate(ga);
-      x.fillRect(-5, -10, 10, 20); x.restore();
+      x.beginPath();
+      x.moveTo(-14, -16); x.lineTo(14, -16); x.lineTo(0, 0); x.lineTo(14, 16); x.moveTo(-14, 16); x.lineTo(0, 0);
+      x.stroke();
+      x.beginPath(); x.arc(0, -22, 6, 0, 6.283); x.stroke();
+      x.restore();
     }
-    var tex = new THREE.CanvasTexture(c);
-    return tex;
+    var tex = new THREE.CanvasTexture(c); return tex;
   }
 
-  // Soft cloud/noise texture for the storm dome.
-  function makeCloudTexture() {
-    var size = 512, c = document.createElement('canvas'); c.width = c.height = size;
-    var x = c.getContext('2d');
-    x.fillStyle = 'rgba(0,0,0,0)'; x.clearRect(0, 0, size, size);
-    for (var i = 0; i < 90; i++) {
-      var px = Math.random() * size, py = Math.random() * size;
-      var r = 30 + Math.random() * 90;
-      var a = 0.04 + Math.random() * 0.08;
-      var g = x.createRadialGradient(px, py, 0, px, py, r);
-      g.addColorStop(0, 'rgba(180,170,210,' + a + ')');
-      g.addColorStop(1, 'rgba(20,14,36,0)');
-      x.fillStyle = g; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
-    }
-    var tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-  }
-
-  // Vertical sky gradient with subtle horizon glow.
-  function makeSkyTexture() {
-    var w = 16, h = 256, c = document.createElement('canvas'); c.width = w; c.height = h;
-    var x = c.getContext('2d');
-    var g = x.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0.0, '#08060f');   // top: near black
-    g.addColorStop(0.45, '#160d2e');  // deep purple
-    g.addColorStop(0.78, '#241742');  // purple
-    g.addColorStop(0.92, '#12303a');  // teal horizon haze
-    g.addColorStop(1.0, '#0a1a22');
-    x.fillStyle = g; x.fillRect(0, 0, w, h);
-    var tex = new THREE.CanvasTexture(c);
-    return tex;
-  }
-
-  // Soft radial blob for ground fog planes.
-  function makeFogTexture() {
+  function makeHaloTexture() {
     var size = 256, c = document.createElement('canvas'); c.width = c.height = size;
     var x = c.getContext('2d');
     var g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(150,130,190,0.5)');
-    g.addColorStop(0.6, 'rgba(90,74,130,0.22)');
-    g.addColorStop(1, 'rgba(40,30,60,0)');
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.35, 'rgba(255,255,255,0.45)');
+    g.addColorStop(0.7, 'rgba(255,255,255,0.12)'); g.addColorStop(1, 'rgba(255,255,255,0)');
     x.fillStyle = g; x.fillRect(0, 0, size, size);
-    var tex = new THREE.CanvasTexture(c);
-    return tex;
+    return new THREE.CanvasTexture(c);
   }
 
-  // ── Scene construction (lazy, one-time) ─────────────────────────────
+  function makeEnvMap() {
+    var pairs = [['#241742', '#0a2030'], ['#0a2030', '#241742'], ['#2a1850', '#0a1a22'],
+                 ['#05060f', '#070a14'], ['#1a0a2e', '#0a2030'], ['#0a2030', '#1a0a2e']];
+    var faces = [];
+    for (var f = 0; f < 6; f++) {
+      var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+      var cx = cv.getContext('2d'); var g = cx.createLinearGradient(0, 0, 0, 64);
+      g.addColorStop(0, pairs[f][0]); g.addColorStop(1, pairs[f][1]);
+      cx.fillStyle = g; cx.fillRect(0, 0, 64, 64); faces.push(cv);
+    }
+    var ct = new THREE.CubeTexture(faces); ct.needsUpdate = true;
+    if ('encoding' in ct) ct.encoding = THREE.sRGBEncoding;
+    return ct;
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────
   function build() {
     built = true;
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    mobile = isMobile();
+    texLoader = new THREE.TextureLoader();
+
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !mobile, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(mobile ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 1.06;
+    if (ENABLE_SHADOWS) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
 
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x140a24, 0.018);
+    scene.fog = new THREE.FogExp2(0x100822, 0.012);
     clock = new THREE.Clock();
 
-    camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
-    camera.position.set(0, 14, 36);
+    camera = new THREE.PerspectiveCamera(54, window.innerWidth / window.innerHeight, 0.1, 800);
+    camera.position.set(0, 14, 34);
     camera.lookAt(0, 5, 0);
 
-    // Lighting — low ambient + teal & gold key lights for arcane mood.
-    scene.add(new THREE.AmbientLight(0x3a2a55, 0.7));
-    var tealL = new THREE.PointLight(0x3de8c5, 1.2, 160, 2); tealL.position.set(-20, 18, 14); scene.add(tealL);
-    var goldL = new THREE.PointLight(0xe8c56a, 1.0, 160, 2); goldL.position.set(22, 14, -10); scene.add(goldL);
-    var fill = new THREE.DirectionalLight(0x6a4fa0, 0.35); fill.position.set(0, 30, 20); scene.add(fill);
-    lightningLight = new THREE.DirectionalLight(0xcfe0ff, 0.0); lightningLight.position.set(10, 50, -30); scene.add(lightningLight);
+    envMap = makeEnvMap();
 
+    buildLights();
+    buildSky();
+    if (!mobile) buildAurora();
+    buildStars();
+    buildClouds();
     buildFloor();
     buildPillars();
-    buildSky();
-    buildClouds();
-    buildGroundFog();
-    buildParticles();
+    buildDebris();
+    buildFog();
+    buildHorizon();
+
+    spiritGroup = new THREE.Group(); scene.add(spiritGroup);
+  }
+
+  function buildLights() {
+    scene.add(new THREE.AmbientLight(0x1a0a2e, 0.3));
+    var dir = new THREE.DirectionalLight(0xcfe0ff, 1.2);
+    dir.position.set(-18, 34, 14);
+    if (ENABLE_SHADOWS) { dir.castShadow = true; dir.shadow.mapSize.set(1024, 1024); }
+    scene.add(dir);
+    orbitA = new THREE.PointLight(0x00ffcc, 2.0, 20, 2); orbitA.position.set(16, 1.5, 0); scene.add(orbitA);
+    orbitB = new THREE.PointLight(0x8800ff, 2.0, 20, 2); orbitB.position.set(-16, 1.5, 0); scene.add(orbitB);
+    lightningLight = new THREE.DirectionalLight(0xdce8ff, 0.0); lightningLight.position.set(8, 50, -24); scene.add(lightningLight);
+    entryFlash = new THREE.PointLight(0xffffff, 0.0, 16, 2); entryFlash.position.set(0, 3, 0); scene.add(entryFlash);
+    // Spotlight above arena center aimed at the floor.
+    spotLight = new THREE.SpotLight(0xffffff, 3.0, 60, 0.34, 0.5, 1.4);
+    spotLight.position.set(0, 30, 0); spotLight.target.position.set(0, 0, 0);
+    scene.add(spotLight); scene.add(spotLight.target);
+    boltGroup = new THREE.Group(); scene.add(boltGroup);
+  }
+
+  function skyShaderMat(opts) {
+    var mat = new THREE.ShaderMaterial({
+      uniforms: Object.assign({ uTime: { value: 0 } }, opts.uniforms || {}),
+      vertexShader: 'varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: NOISE + '\n' + opts.frag,
+      side: THREE.BackSide, transparent: !!opts.transparent, depthWrite: false, fog: false,
+      blending: opts.blending || THREE.NormalBlending
+    });
+    skyMatList.push(mat);
+    return mat;
+  }
+
+  function buildSky() {
+    var frag = [
+      'varying vec3 vPos; uniform float uTime;',
+      'void main(){',
+      '  vec3 d=normalize(vPos);',
+      '  float h=clamp(d.y*0.5+0.5,0.0,1.0);',
+      '  vec3 top=vec3(0.02,0.012,0.05);',
+      '  vec3 mid=vec3(0.08,0.045,0.16);',
+      '  vec3 hor=vec3(0.04,0.12,0.14);',
+      '  vec3 col=mix(hor,mid,smoothstep(0.0,0.5,h));',
+      '  col=mix(col,top,smoothstep(0.45,1.0,h));',
+      '  float n=fbm(d*2.0+vec3(uTime*0.015,0.0,uTime*0.01));',
+      '  vec3 neb=mix(vec3(0.0,0.22,0.20),vec3(0.22,0.04,0.36),n*0.5+0.5);',
+      '  col+=neb*smoothstep(0.15,0.85,n)*0.10;',
+      '  gl_FragColor=vec4(col,1.0);',
+      '}'
+    ].join('\n');
+    var sky = new THREE.Mesh(new THREE.SphereGeometry(320, 32, 20), skyShaderMat({ frag: frag }));
+    sky.renderOrder = -20; scene.add(sky);
+  }
+
+  function buildAurora() {
+    var frag = [
+      'varying vec3 vPos; uniform float uTime;',
+      'void main(){',
+      '  vec3 d=normalize(vPos);',
+      '  float band=sin(atan(d.z,d.x)*3.0 + uTime*0.25 + fbm(d*3.0+vec3(uTime*0.05))*3.0);',
+      '  float vert=smoothstep(-0.05,0.45,d.y)*smoothstep(0.85,0.30,d.y);',
+      '  float ribbon=smoothstep(0.25,1.0,band)*vert;',
+      '  float mixv=sin(uTime*0.18+atan(d.z,d.x))*0.5+0.5;',
+      '  vec3 c=mix(vec3(0.0,0.9,0.7), vec3(0.45,0.1,1.0), mixv);',
+      '  c=mix(c, vec3(0.1,0.4,1.0), smoothstep(0.4,0.9,band));',
+      '  float a=ribbon*0.45;',
+      '  gl_FragColor=vec4(c*a, a);',
+      '}'
+    ].join('\n');
+    auroraMat = skyShaderMat({ frag: frag, transparent: true, blending: THREE.AdditiveBlending });
+    var aur = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 20), auroraMat);
+    aur.renderOrder = -18; scene.add(aur);
+  }
+
+  function buildClouds() {
+    var layers = mobile ? 1 : 3;
+    var cfg = [
+      { r: 240, scale: 1.6, speed: 0.012, color: new THREE.Color(0x1a1230), op: 0.55 },
+      { r: 260, scale: 2.6, speed: 0.020, color: new THREE.Color(0x241a3a), op: 0.42 },
+      { r: 280, scale: 3.6, speed: 0.016, color: new THREE.Color(0x12202c), op: 0.36 }
+    ];
+    var frag = [
+      'varying vec3 vPos; uniform float uTime; uniform float uScale; uniform float uSpeed; uniform vec3 uColor; uniform float uOpacity;',
+      'void main(){',
+      '  vec3 d=normalize(vPos);',
+      '  float den=fbm(d*uScale+vec3(uTime*uSpeed,uTime*uSpeed*0.4,uTime*uSpeed*0.2));',
+      '  den=smoothstep(0.0,0.7,den);',
+      '  float a=den*uOpacity*smoothstep(-0.15,0.45,d.y);',
+      '  gl_FragColor=vec4(uColor, a);',
+      '}'
+    ].join('\n');
+    for (var i = 0; i < layers; i++) {
+      var L = cfg[i];
+      var mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uScale: { value: L.scale }, uSpeed: { value: L.speed }, uColor: { value: L.color }, uOpacity: { value: L.op } },
+        vertexShader: 'varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+        fragmentShader: NOISE + '\n' + frag,
+        side: THREE.BackSide, transparent: true, depthWrite: false, fog: false
+      });
+      skyMatList.push(mat);
+      var m = new THREE.Mesh(new THREE.SphereGeometry(L.r, 32, 20), mat);
+      m.renderOrder = -10 + i; scene.add(m);
+    }
+  }
+
+  function buildStars() {
+    var n = mobile ? 300 : 800;
+    var pos = new Float32Array(n * 3), size = new Float32Array(n), phase = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      // distribute on a sphere shell, biased to upper hemisphere
+      var u = Math.random(), v = Math.random() * 0.7 + 0.15;
+      var theta = u * 6.283, phi = Math.acos(2 * v - 1);
+      var r = 290;
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = Math.abs(r * Math.cos(phi)) * 0.8 + 10;
+      pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      size[i] = 1.5 + Math.random() * 3.0;
+      phase[i] = Math.random() * 6.283;
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+    starsMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: [
+        'attribute float aSize; attribute float aPhase; varying float vPhase; uniform float uTime;',
+        'void main(){ vPhase=aPhase; vec4 mv=modelViewMatrix*vec4(position,1.0);',
+        '  gl_PointSize=aSize*(0.7+0.5*sin(uTime*2.0+aPhase)); gl_Position=projectionMatrix*mv; }'
+      ].join('\n'),
+      fragmentShader: [
+        'varying float vPhase; uniform float uTime;',
+        'void main(){ vec2 c=gl_PointCoord-0.5; float d=length(c); if(d>0.5) discard;',
+        '  float a=smoothstep(0.5,0.0,d)*(0.45+0.55*sin(uTime*2.5+vPhase));',
+        '  gl_FragColor=vec4(vec3(0.82,0.86,1.0), a); }'
+      ].join('\n'),
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false
+    });
+    var pts = new THREE.Points(geo, starsMat); pts.renderOrder = -15; scene.add(pts);
   }
 
   function buildFloor() {
-    var stoneCanvas = makeStoneCanvas(512);
-    var map = new THREE.CanvasTexture(stoneCanvas);
-    map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(7, 7);
+    var stone = makeStoneCanvas(512);
+    var map = new THREE.CanvasTexture(stone); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(6, 6);
     if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
-    var normalMap = heightToNormal(stoneCanvas, 2.6); normalMap.repeat.set(7, 7);
-    var mat = new THREE.MeshStandardMaterial({
-      map: map, normalMap: normalMap, normalScale: new THREE.Vector2(1.1, 1.1),
-      roughness: 0.93, metalness: 0.08, color: 0x8076a0
+    var normalMap = heightToNormal(stone, 2.2); normalMap.repeat.set(6, 6);
+    floorMat = new THREE.MeshStandardMaterial({
+      map: map, normalMap: normalMap, normalScale: new THREE.Vector2(0.7, 0.7),
+      roughness: 0.1, metalness: 0.3, color: 0x6f6890,
+      envMap: envMap, envMapIntensity: 0.8,
+      emissive: 0xffffff, emissiveMap: makeRuneCanvas(), emissiveIntensity: 0.5
     });
-    var floor = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), mat);
-    floor.rotation.x = -Math.PI / 2; floor.position.y = 0;
+    var floor = new THREE.Mesh(new THREE.PlaneGeometry(180, 180), floorMat);
+    floor.rotation.x = -Math.PI / 2; if (ENABLE_SHADOWS) floor.receiveShadow = true;
     scene.add(floor);
+    runeMeshes.push({ material: floorMat });
 
-    // Glowing arcane circle laid on the floor (additive, pulses in animate()).
-    var runeTex = makeRuneTexture();
-    var runeMat = new THREE.MeshBasicMaterial({ map: runeTex, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
-    var rune = new THREE.Mesh(new THREE.PlaneGeometry(34, 34), runeMat);
-    rune.rotation.x = -Math.PI / 2; rune.position.y = 0.06;
-    scene.add(rune); runeMeshes.push(rune);
+    // Wet-stone fake reflection: a faint dark mirror sheet just below the floor.
+    var mirror = new THREE.Mesh(new THREE.PlaneGeometry(180, 180),
+      new THREE.MeshStandardMaterial({ color: 0x05030f, roughness: 0.04, metalness: 1.0, envMap: envMap, envMapIntensity: 1.1, transparent: true, opacity: 0.5 }));
+    mirror.rotation.x = -Math.PI / 2; mirror.position.y = -0.06; scene.add(mirror);
 
-    // Two concentric emissive rings for extra glow.
-    [[14, 0x3de8c5], [20, 0xe8c56a]].forEach(function (r) {
-      var ring = new THREE.Mesh(
-        new THREE.RingGeometry(r[0] * 0.94, r[0], 80),
-        new THREE.MeshBasicMaterial({ color: r[1], transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false })
-      );
-      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
-      scene.add(ring); runeMeshes.push(ring);
+    // additive accent rings
+    [[14, 0x3de8c5], [20, 0xe8c56a], [27, 0x8855ff]].forEach(function (r) {
+      var ring = new THREE.Mesh(new THREE.RingGeometry(r[0] * 0.96, r[0], 90),
+        new THREE.MeshBasicMaterial({ color: r[1], transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; scene.add(ring); runeMeshes.push(ring);
     });
   }
 
   function buildPillars() {
-    var stoneCanvas = makeStoneCanvas(256);
-    var map = new THREE.CanvasTexture(stoneCanvas);
-    map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1, 3);
+    var stone = makeStoneCanvas(256);
+    var map = new THREE.CanvasTexture(stone); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1, 3);
     if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
-    var normalMap = heightToNormal(stoneCanvas, 2.0); normalMap.repeat.set(1, 3);
-    var mat = new THREE.MeshStandardMaterial({ map: map, normalMap: normalMap, roughness: 0.95, metalness: 0.06, color: 0x55506e });
-
-    // Ring of broken pillars around the arena, varying height + slight tilt.
-    var count = 9;
+    var normalMap = heightToNormal(stone, 1.8); normalMap.repeat.set(1, 3);
+    var mat = new THREE.MeshStandardMaterial({ map: map, normalMap: normalMap, roughness: 0.85, metalness: 0.1, color: 0x4a4566, envMap: envMap, envMapIntensity: 0.4 });
+    var count = 11;
     for (var i = 0; i < count; i++) {
-      var a = (i / count) * Math.PI * 2 + 0.3;
-      var rad = 46 + (i % 3) * 6;
-      var h = 16 + Math.random() * 26;
+      var a = (i / count) * 6.283 + 0.25;
+      var rad = 42 + (i % 3) * 7;
+      var h = 4 + Math.random() * 8;            // varying heights (spec 3-8-ish)
       var px = Math.cos(a) * rad, pz = Math.sin(a) * rad;
-      var p = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, h, 10, 1), mat);
-      p.position.set(px, h / 2 - 2, pz);
-      p.rotation.z = (Math.random() - 0.5) * 0.12;
-      p.rotation.y = Math.random() * Math.PI;
+      var topR = 1.0 + Math.random() * 0.6, botR = 2.0 + Math.random() * 0.6;
+      var p = new THREE.Mesh(new THREE.CylinderGeometry(topR, botR, h, 9, 1), mat);
+      p.position.set(px, h / 2 - 1.5, pz);
+      p.rotation.z = (Math.random() - 0.5) * 0.16; p.rotation.y = Math.random() * 6.283;
+      if (ENABLE_SHADOWS) p.castShadow = true;
       scene.add(p);
-      // jagged broken cap
-      var cap = new THREE.Mesh(new THREE.ConeGeometry(2.2, 3.5, 7, 1), mat);
-      cap.position.set(px, h - 2.5, pz);
-      cap.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI, (Math.random() - 0.5) * 0.5);
-      scene.add(cap);
+      // base point light, alternating teal / violet (skip half on mobile for perf)
+      if (!mobile || i % 2 === 0) {
+        var pl = new THREE.PointLight(i % 2 ? 0x8b2fff : 0x00e5cc, 1.5, 6, 2);
+        pl.position.set(px, 0.6, pz); scene.add(pl);
+      }
+      // crumbled top chunks
+      for (var c2 = 0; c2 < 2; c2++) {
+        var chunk = new THREE.Mesh(new THREE.BoxGeometry(0.8 + Math.random(), 0.6 + Math.random(), 0.8 + Math.random()), mat);
+        chunk.position.set(px + (Math.random() - 0.5) * 2, h - 1.5 + Math.random() * 1.2, pz + (Math.random() - 0.5) * 2);
+        chunk.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        scene.add(chunk);
+      }
     }
   }
 
-  function buildSky() {
-    var skyTex = makeSkyTexture();
-    skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false });
-    var sky = new THREE.Mesh(new THREE.SphereGeometry(280, 32, 16), skyMat);
-    scene.add(sky);
+  function buildDebris() {
+    DEBRIS_N = mobile ? Math.round(42 * 0.4) : 42;
+    var geo = new THREE.BoxGeometry(1, 1, 1);
+    var mat = new THREE.MeshStandardMaterial({ color: 0x6a5a8a, roughness: 0.7, metalness: 0.2, emissive: 0x150a2a, emissiveIntensity: 0.5 });
+    debris = new THREE.InstancedMesh(geo, mat, DEBRIS_N);
+    debris.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    debrisDummy = new THREE.Object3D(); debrisData = [];
+    for (var i = 0; i < DEBRIS_N; i++) {
+      var d = { x: (Math.random() - 0.5) * 70, y: Math.random() * 40, z: (Math.random() - 0.5) * 70,
+        s: 0.1 + Math.random() * 0.4, vy: 0.6 + Math.random() * 1.4, rx: (Math.random() - 0.5) * 1.2, ry: (Math.random() - 0.5) * 1.2, rot: Math.random() * 6.283 };
+      debrisData.push(d);
+      debrisDummy.position.set(d.x, d.y, d.z); debrisDummy.scale.setScalar(d.s); debrisDummy.updateMatrix();
+      debris.setMatrixAt(i, debrisDummy.matrix);
+    }
+    scene.add(debris);
   }
 
-  function buildClouds() {
-    var cloudTex = makeCloudTexture(); cloudTex.repeat.set(4, 2);
-    var mat = new THREE.MeshBasicMaterial({
-      map: cloudTex, transparent: true, opacity: 0.6, side: THREE.BackSide,
-      depthWrite: false, fog: false, color: 0x2c2548, blending: THREE.NormalBlending
+  function buildFog() {
+    var layers = mobile ? 2 : 4;
+    var frag = [
+      'varying vec2 vUv; uniform float uTime; uniform vec3 uColor;',
+      'void main(){',
+      '  vec2 uv=vUv*3.0;',
+      '  float n=fbm(vec3(uv+vec2(uTime*0.03,uTime*0.02), uTime*0.05));',
+      '  float n2=fbm(vec3(uv*1.7-vec2(uTime*0.02,0.0), 5.0));',
+      '  float a=smoothstep(0.1,0.9,(n+n2)*0.5+0.5);',
+      '  float edge=smoothstep(0.0,0.3,vUv.x)*smoothstep(1.0,0.7,vUv.x)*smoothstep(0.0,0.3,vUv.y)*smoothstep(1.0,0.7,vUv.y);',
+      '  gl_FragColor=vec4(uColor, a*edge*0.32);',
+      '}'
+    ].join('\n');
+    for (var i = 0; i < layers; i++) {
+      var mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: Math.random() * 50 }, uColor: { value: new THREE.Color(i % 2 ? 0x2a5a6a : 0x3a2a5a) } },
+        vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+        fragmentShader: NOISE + '\n' + frag,
+        transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false
+      });
+      fogMats.push(mat);
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), mat);
+      m.rotation.x = -Math.PI / 2; m.position.y = 0.6 + i * 1.4; m.renderOrder = 2; scene.add(m);
+    }
+  }
+
+  function buildHorizon() {
+    // distant dark ruin/mountain silhouette: instanced angular prisms ringed far out
+    var n = 26;
+    var geo = new THREE.BoxGeometry(1, 1, 1);
+    var mat = new THREE.MeshBasicMaterial({ color: 0x080510, fog: true });
+    var im = new THREE.InstancedMesh(geo, mat, n);
+    var dm = new THREE.Object3D();
+    for (var i = 0; i < n; i++) {
+      var a = (i / n) * 6.283;
+      var rad = 110 + Math.random() * 25;
+      var w = 8 + Math.random() * 16, h = 18 + Math.random() * 46, dpt = 8 + Math.random() * 14;
+      dm.position.set(Math.cos(a) * rad, h / 2 - 6, Math.sin(a) * rad);
+      dm.rotation.y = a + (Math.random() - 0.5) * 0.5;
+      dm.scale.set(w, h, dpt); dm.updateMatrix(); im.setMatrixAt(i, dm.matrix);
+    }
+    scene.add(im);
+  }
+
+  // ── Spirit billboards ────────────────────────────────────────────────
+  function clearSpirits() {
+    if (!spiritGroup) return;
+    for (var i = spiritGroup.children.length - 1; i >= 0; i--) {
+      var ch = spiritGroup.children[i];
+      ch.traverse(function (o) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+      });
+      spiritGroup.remove(ch);
+    }
+    billboards = [];
+  }
+
+  function spiritTexture(name, mat) {
+    // Try Spirits/<name>.jpg first; fall back to base64 SPIRIT_IMGS; then a flat tint.
+    var epoch = battleEpoch;
+    function apply(tex) {
+      if (epoch !== battleEpoch) { if (tex && tex.dispose) tex.dispose(); return; }
+      if ('encoding' in tex) tex.encoding = THREE.sRGBEncoding;
+      tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+      mat.map = tex; mat.color.setHex(0xffffff); mat.needsUpdate = true;
+    }
+    texLoader.load('Spirits/' + name + '.jpg', apply, undefined, function () {
+      var imgs = getSpiritImgs();
+      if (imgs && imgs[name]) { texLoader.load(imgs[name], apply, undefined, function () {}); }
     });
-    cloudsMesh = new THREE.Mesh(new THREE.SphereGeometry(250, 32, 16), mat);
-    cloudsMesh.position.y = 10;
-    scene.add(cloudsMesh);
   }
 
-  function buildGroundFog() {
-    var fogTex = makeFogTexture();
-    for (var i = 0; i < 4; i++) {
-      var m = new THREE.Mesh(
-        new THREE.PlaneGeometry(150, 150),
-        new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, opacity: 0.16, depthWrite: false, fog: false, color: 0x6a5a8a })
-      );
-      m.rotation.x = -Math.PI / 2;
-      m.position.y = 1.5 + i * 1.6;
-      m.userData.spin = (i % 2 ? 1 : -1) * (0.01 + Math.random() * 0.015);
-      scene.add(m); fogPlanes.push(m);
+  function buildSpiritsFor(side, team, z) {
+    if (!team || !team.length) return;
+    var classes = getClasses() || {};
+    var n = team.length, spacing = 4.2;
+    var haloTex = makeHaloTexture();
+    for (var i = 0; i < n; i++) {
+      var c = team[i];
+      if (!c) continue;
+      var clsCol = (classes[c.cls] && classes[c.cls].color) ? new THREE.Color(classes[c.cls].color) : new THREE.Color(0x9b8fd0);
+      var x = (i - (n - 1) / 2) * spacing;
+
+      var group = new THREE.Group();
+      group.position.set(x, -2, z);   // start buried
+
+      // glowing rim behind portrait (class color)
+      var rim = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 4.2),
+        new THREE.MeshBasicMaterial({ color: clsCol, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+      rim.position.z = -0.05; group.add(rim);
+
+      // portrait plane (unlit so it's always clearly visible)
+      var pmat = new THREE.MeshBasicMaterial({ color: clsCol.clone().multiplyScalar(0.5), transparent: true, side: THREE.DoubleSide });
+      var portrait = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.7), pmat);
+      portrait.position.y = 0; group.add(portrait);
+      spiritTexture(c.name, pmat);
+
+      spiritGroup.add(group);
+
+      // floor glow halo
+      var halo = new THREE.Mesh(new THREE.PlaneGeometry(6, 6),
+        new THREE.MeshBasicMaterial({ map: haloTex, color: clsCol, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      halo.rotation.x = -Math.PI / 2; halo.position.set(x, 0.05, z); spiritGroup.add(halo);
+
+      var sideIdx = (side === 'enemy' ? 0 : 1);
+      billboards.push({
+        group: group, halo: halo, side: side, idx: i,
+        baseY: 2.0, phase: Math.random() * 6.283,
+        delay: i * STAGGER + sideIdx * (n * STAGGER + 0.2),
+        riseStart: clock.getElapsedTime(), risen: false, flashed: false, dead: false, deadT: 0
+      });
     }
   }
 
-  function buildParticles() {
-    if (isMobile()) PCOUNT = 70;
-    var geo = new THREE.TetrahedronGeometry(0.22, 0);
-    var mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, vertexColors: true });
-    particles = new THREE.InstancedMesh(geo, mat, PCOUNT);
-    particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    pDummy = new THREE.Object3D();
-    var teal = new THREE.Color(0x3de8c5), gold = new THREE.Color(0xe8c56a);
-    for (var i = 0; i < PCOUNT; i++) {
-      var d = {
-        x: (Math.random() - 0.5) * 80, y: Math.random() * 46, z: (Math.random() - 0.5) * 80,
-        vy: 1.4 + Math.random() * 2.4, sway: Math.random() * Math.PI * 2,
-        swaySpeed: 0.4 + Math.random() * 0.9, rot: Math.random() * Math.PI,
-        rotSpeed: (Math.random() - 0.5) * 1.3, scale: 0.45 + Math.random() * 1.1
-      };
-      pData.push(d);
-      pDummy.position.set(d.x, d.y, d.z); pDummy.scale.setScalar(d.scale); pDummy.updateMatrix();
-      particles.setMatrixAt(i, pDummy.matrix);
-      particles.setColorAt(i, Math.random() < 0.55 ? teal : gold);
+  function rebuildSpirits() {
+    if (!built) return;
+    battleEpoch++;
+    clearSpirits();
+    var g = getG();
+    if (!g || !g.playerTeam || !g.enemyTeam) return false;
+    buildSpiritsFor('enemy', g.enemyTeam, -9);
+    buildSpiritsFor('player', g.playerTeam, 9);
+    // Kick off the dramatic camera pull-back for the battle intro.
+    introFovT = 0;
+    return true;
+  }
+
+  function easeOutBack(t) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
+
+  function updateSpirits(t, dt) {
+    var g = getG();
+    for (var i = 0; i < billboards.length; i++) {
+      var b = billboards[i];
+      // rise / idle
+      var local = t - b.riseStart - b.delay;
+      if (local < 0) { b.group.position.y = -2; }
+      else if (local < RISE_DUR) {
+        if (!b.flashed) { b.flashed = true; entryFlash.position.set(b.group.position.x, 3, b.halo.position.z); entryFlash.intensity = 3.0; }
+        var tt = local / RISE_DUR;
+        b.group.position.y = -2 + (b.baseY + 2) * easeOutBack(tt);
+        b.halo.material.opacity = 0.6 * tt;
+      } else {
+        if (!b.risen) { b.risen = true; }
+        b.group.position.y = b.baseY + Math.sin(t * Math.PI + b.phase) * 0.08;
+        b.halo.material.opacity = 0.45 + Math.sin(t * 1.6 + b.phase) * 0.12;
+      }
+      // billboard toward camera (Y axis only)
+      b.group.lookAt(camera.position.x, b.group.position.y, b.group.position.z);
+
+      // death sync (read-only)
+      var team = g ? g[b.side + 'Team'] : null;
+      var c = team && team[b.idx];
+      if (c && c.dead && !b.dead) {
+        b.dead = true;
+        // fragment burst + red halo flash + camera shake on the moment of death
+        spawnDeathBits(b.group.position.x, b.baseY, b.halo.position.z, 0xff4466);
+        if (b.halo.material) { b.halo.material.color.setHex(0xff2244); }
+        camShake = Math.max(camShake, 0.02);
+      }
+      if (b.dead) {
+        b.deadT = Math.min(1, b.deadT + dt * 1.6);
+        b.group.children.forEach(function (m) { if (m.material) m.material.opacity = Math.max(0.12, (m.material.opacity || 1) * (1 - b.deadT) ); });
+        b.group.rotation.x = -b.deadT * 0.5; // tip backward
+        b.halo.material.opacity *= (1 - b.deadT);
+        b.group.position.y = Math.max(0.4, b.baseY - b.deadT * 1.2);
+      }
     }
-    if (particles.instanceColor) particles.instanceColor.needsUpdate = true;
-    scene.add(particles);
+  }
+
+  // Build a jagged path from a high sky point down to the ground with random offsets.
+  function makeBoltPath(x0, z0) {
+    var pts = [], steps = 9, topY = 70, x = x0, z = z0;
+    for (var i = 0; i <= steps; i++) {
+      var f = i / steps;
+      var y = topY * (1 - f);
+      pts.push(new THREE.Vector3(x, y, z));
+      x += (Math.random() - 0.5) * 9; z += (Math.random() - 0.5) * 9;
+    }
+    return pts;
+  }
+
+  function makeBoltMesh(pts, radius) {
+    var curve = new THREE.CatmullRomCurve3(pts);
+    var geo = new THREE.TubeGeometry(curve, pts.length * 3, radius, 5, false);
+    var mat = new THREE.MeshBasicMaterial({ color: 0xeaf2ff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function playThunder() {
+    try {
+      if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; audioCtx = new AC(); }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var dur = 0.6 + Math.random() * 0.5;
+      var sr = audioCtx.sampleRate, len = Math.floor(sr * dur);
+      var buf = audioCtx.createBuffer(1, len, sr), data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) { var env = Math.pow(1 - i / len, 2); data[i] = (Math.random() * 2 - 1) * env; }
+      var src = audioCtx.createBufferSource(); src.buffer = buf;
+      var lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+      var g = audioCtx.createGain(); g.gain.value = 0.18;
+      src.connect(lp); lp.connect(g); g.connect(audioCtx.destination); src.start();
+    } catch (e) {}
   }
 
   function triggerLightning() {
-    lightningLight.intensity = 2.0 + Math.random() * 1.8;
-    if (skyMat) skyMat.color.setHex(0x4654a0);
-    setTimeout(function () { if (skyMat) skyMat.color.setHex(0xffffff); }, 80);
-    if (Math.random() < 0.45) setTimeout(function () { if (lightningLight) lightningLight.intensity = 1.6; }, 140);
+    // Light spike + camera micro-shake + (high quality) actual bolt geometry.
+    lightningLight.intensity = 2.6 + Math.random() * 1.4;
+    camShake = Math.max(camShake, 0.012);
+    if (Math.random() < 0.5) playThunder();
+    if (mobile || !boltGroup) return; // low quality: light flash only
+    var x0 = (Math.random() - 0.5) * 60, z0 = (Math.random() - 0.5) * 40 - 20;
+    var main = makeBoltPath(x0, z0);
+    var meshes = [makeBoltMesh(main, 0.18)];
+    boltGroup.add(meshes[0]);
+    // 2-3 sub-branches off random midpoints
+    var branches = 2 + (Math.random() * 2 | 0);
+    for (var b = 0; b < branches; b++) {
+      var origin = main[2 + (Math.random() * (main.length - 4) | 0)];
+      var bp = [origin.clone()], bx = origin.x, bz = origin.z, by = origin.y;
+      for (var s = 0; s < 4; s++) { bx += (Math.random() - 0.5) * 10; bz += (Math.random() - 0.5) * 10; by -= origin.y / 5; bp.push(new THREE.Vector3(bx, Math.max(0, by), bz)); }
+      var bm = makeBoltMesh(bp, 0.08); boltGroup.add(bm); meshes.push(bm);
+    }
+    bolts.push({ meshes: meshes, life: 0, max: 0.26 });
+  }
+
+  // Emit ~15 fragment shards from a dying spirit; they fly out, fall, and fade.
+  function spawnDeathBits(x, y, z, color) {
+    var n = mobile ? 8 : 15;
+    for (var i = 0; i < n; i++) {
+      var g = new THREE.PlaneGeometry(0.18 + Math.random() * 0.22, 0.18 + Math.random() * 0.22);
+      var m = new THREE.MeshBasicMaterial({ color: color || 0xff4466, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+      var mesh = new THREE.Mesh(g, m);
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+      deathBits.push({ mesh: mesh, vx: (Math.random() - 0.5) * 7, vy: 3 + Math.random() * 5, vz: (Math.random() - 0.5) * 7, life: 0, max: 1.0, rot: (Math.random() - 0.5) * 6 });
+    }
+  }
+
+  function updateBoltsAndBits(dt) {
+    // lightning bolt fade + dispose
+    for (var i = bolts.length - 1; i >= 0; i--) {
+      var bo = bolts[i]; bo.life += dt;
+      var k = 1 - bo.life / bo.max;
+      for (var j = 0; j < bo.meshes.length; j++) bo.meshes[j].material.opacity = Math.max(0, k);
+      if (bo.life >= bo.max) {
+        for (var d = 0; d < bo.meshes.length; d++) { boltGroup.remove(bo.meshes[d]); bo.meshes[d].geometry.dispose(); bo.meshes[d].material.dispose(); }
+        bolts.splice(i, 1);
+      }
+    }
+    // death fragments: gravity + fade + dispose
+    for (var f = deathBits.length - 1; f >= 0; f--) {
+      var p = deathBits[f]; p.life += dt;
+      p.vy -= 12 * dt;
+      p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
+      p.mesh.rotation.z += p.rot * dt; p.mesh.rotation.x += p.rot * 0.6 * dt;
+      p.mesh.material.opacity = Math.max(0, 0.95 * (1 - p.life / p.max));
+      if (p.life >= p.max || p.mesh.position.y < -2) {
+        scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); deathBits.splice(f, 1);
+      }
+    }
   }
 
   function onResize() {
     if (!renderer) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   function animate() {
     rafId = requestAnimationFrame(animate);
-    var dt = Math.min(clock.getDelta(), 0.05); // clamp to avoid jumps after tab-switch
-    var t = clock.getElapsedTime();
+    var dt = Math.min(clock.getDelta(), 0.05), t = clock.getElapsedTime();
 
-    // Slow orbiting camera drift with gentle vertical bob.
-    camAngle += dt * 0.05;
-    var r = 36;
-    camera.position.x = Math.sin(camAngle) * r;
-    camera.position.z = Math.cos(camAngle) * r;
-    camera.position.y = 13 + Math.sin(t * 0.25) * 1.8;
-    camera.lookAt(0, 5, 0);
+    // camera slow orbit + vertical bob
+    camAngle += dt * 0.018;
+    var r = 34;
+    camera.position.x = Math.sin(camAngle) * r; camera.position.z = Math.cos(camAngle) * r;
+    camera.position.y = 13 + Math.sin(t * 0.25) * 1.6; camera.lookAt(0, 5, 0);
 
-    // Drifting clouds.
-    if (cloudsMesh) cloudsMesh.rotation.y += dt * 0.01;
-
-    // Shifting ground fog.
-    for (var f = 0; f < fogPlanes.length; f++) fogPlanes[f].rotation.z += fogPlanes[f].userData.spin * dt;
-
-    // Pulsing runes.
-    for (var u = 0; u < runeMeshes.length; u++) {
-      runeMeshes[u].material.opacity = 0.35 + Math.sin(t * 1.4 + u) * 0.22 + 0.22;
+    // Battle-start FOV pull-back: zoom from 38 → 54 over ~2s (dramatic reveal).
+    if (introFovT >= 0) {
+      introFovT += dt;
+      var fv = Math.min(1, introFovT / 2.0);
+      var eased = 1 - Math.pow(1 - fv, 3);
+      camera.fov = 38 + (54 - 38) * eased;
+      camera.updateProjectionMatrix();
+      if (fv >= 1) introFovT = -1;
     }
 
-    // Floating debris.
-    if (particles) {
-      for (var i = 0; i < PCOUNT; i++) {
-        var d = pData[i];
-        d.y += d.vy * dt; d.sway += d.swaySpeed * dt; d.rot += d.rotSpeed * dt;
-        if (d.y > 48) { d.y = -3; d.x = (Math.random() - 0.5) * 80; d.z = (Math.random() - 0.5) * 80; }
-        pDummy.position.set(d.x + Math.sin(d.sway) * 1.6, d.y, d.z + Math.cos(d.sway * 0.7) * 1.6);
-        pDummy.rotation.set(d.rot, d.rot * 0.7, 0);
-        pDummy.scale.setScalar(d.scale);
-        pDummy.updateMatrix();
-        particles.setMatrixAt(i, pDummy.matrix);
+    // Camera micro-shake (lightning / death impulses), decays each frame.
+    if (camShake > 0.0001) {
+      camera.position.x += (Math.random() - 0.5) * camShake * 20;
+      camera.position.y += (Math.random() - 0.5) * camShake * 20;
+      camera.rotation.z += (Math.random() - 0.5) * camShake;
+      camShake = Math.max(0, camShake - dt * 0.06);
+    }
+
+    // shader time uniforms
+    for (var s = 0; s < skyMatList.length; s++) skyMatList[s].uniforms.uTime.value = t;
+    if (auroraMat) auroraMat.uniforms.uTime.value = t;
+    if (starsMat) starsMat.uniforms.uTime.value = t;
+    for (var f = 0; f < fogMats.length; f++) fogMats[f].uniforms.uTime.value += dt;
+
+    // floor rune pulse 0.3 .. 1.0
+    if (floorMat) floorMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.094) * 0.5 + 0.5) * 0.7;
+    for (var u = 1; u < runeMeshes.length; u++) { if (runeMeshes[u].material) runeMeshes[u].material.opacity = 0.3 + Math.sin(t * 1.4 + u) * 0.18 + 0.18; }
+
+    // orbiting colored lights
+    var oa = t * 0.4;
+    orbitA.position.set(Math.cos(oa) * 16, 1.5, Math.sin(oa) * 16);
+    orbitB.position.set(Math.cos(oa + Math.PI) * 16, 1.5, Math.sin(oa + Math.PI) * 16);
+
+    // debris drift
+    if (debris) {
+      for (var i = 0; i < DEBRIS_N; i++) {
+        var d = debrisData[i]; d.y += d.vy * dt; d.rot += dt;
+        if (d.y > 42) { d.y = -2; d.x = (Math.random() - 0.5) * 70; d.z = (Math.random() - 0.5) * 70; }
+        debrisDummy.position.set(d.x, d.y, d.z);
+        debrisDummy.rotation.set(d.rot * d.rx, d.rot * d.ry, d.rot * 0.5);
+        debrisDummy.scale.setScalar(d.s); debrisDummy.updateMatrix();
+        debris.setMatrixAt(i, debrisDummy.matrix);
       }
-      particles.instanceMatrix.needsUpdate = true;
+      debris.instanceMatrix.needsUpdate = true;
     }
 
-    // Lightning timing + decay.
+    // spirits
+    updateSpirits(t, dt);
+
+    // lightning
     lightningTimer += dt;
-    if (lightningTimer > nextLightningIn) { triggerLightning(); lightningTimer = 0; nextLightningIn = 3 + Math.random() * 6; }
-    if (lightningLight && lightningLight.intensity > 0) {
-      lightningLight.intensity = Math.max(0, lightningLight.intensity - dt * 5.5);
-    }
+    if (lightningTimer > nextLightningIn) { triggerLightning(); lightningTimer = 0; nextLightningIn = 4 + Math.random() * 6; }
+    if (lightningLight && lightningLight.intensity > 0) lightningLight.intensity = Math.max(0, lightningLight.intensity - dt * 7.0);
+    if (entryFlash && entryFlash.intensity > 0) entryFlash.intensity = Math.max(0, entryFlash.intensity - dt * 9.0);
+
+    // lightning bolt geometry fade + death fragment physics
+    updateBoltsAndBits(dt);
 
     renderer.render(scene, camera);
   }
 
-  // ── Lifecycle ───────────────────────────────────────────────────────
+  // ── Lifecycle ────────────────────────────────────────────────────────
   function start() {
-    if (isMobile()) return;
-    if (!built) {
-      try { build(); }
-      catch (e) { console.warn('[bg3d] build failed — disabling 3D battlefield.', e); return; }
-    }
+    if (!built) { try { build(); } catch (e) { console.warn('[bg3d] build failed — disabling.', e); return; } }
     canvas.style.display = 'block';
     document.body.classList.add('battle-3d-active');
     active = true;
+    // (Re)build spirits for the current battle. Retry once shortly in case G
+    // isn't populated the very instant the screen is revealed.
+    if (!rebuildSpirits()) setTimeout(function () { if (active) rebuildSpirits(); }, 120);
     if (rafId === null) { if (clock) clock.start(); animate(); }
   }
 
@@ -5582,23 +6145,161 @@ boot();
     canvas.style.display = 'none';
     document.body.classList.remove('battle-3d-active');
     if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+    // Dispose transient FX so nothing lingers between battles.
+    try {
+      for (var i = 0; i < bolts.length; i++) for (var j = 0; j < bolts[i].meshes.length; j++) {
+        boltGroup.remove(bolts[i].meshes[j]); bolts[i].meshes[j].geometry.dispose(); bolts[i].meshes[j].material.dispose();
+      }
+      bolts = [];
+      for (var k = 0; k < deathBits.length; k++) { scene.remove(deathBits[k].mesh); deathBits[k].mesh.geometry.dispose(); deathBits[k].mesh.material.dispose(); }
+      deathBits = [];
+      camShake = 0; introFovT = -1;
+    } catch (e) {}
   }
 
-  // Watch the battle screen's visibility (class toggling) without touching showScreen().
   var obs = new MutationObserver(function () {
     var visible = !battleEl.classList.contains('hidden');
     if (visible && !active) start();
     else if (!visible && active) stop();
   });
   obs.observe(battleEl, { attributes: true, attributeFilter: ['class'] });
-  // In case battle is already visible at module init.
   if (!battleEl.classList.contains('hidden')) start();
 
-  window.addEventListener('resize', function () {
-    onResize();
-    if (isMobile() && active) stop();
-    else if (!isMobile() && !active && !battleEl.classList.contains('hidden')) start();
-  });
+  window.addEventListener('resize', function () { mobile = isMobile(); onResize(); });
+})();
+</script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — purely additive, guarded, zero game-logic changes.
+   Ripple on buttons, selective magnetic buttons, title particles,
+   victory confetti / defeat vignette. Never touches IDs, data attrs, or
+   any function the game depends on.
+   ════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  var BTN_SEL = '.title-btn,.btn-end,.result-btn,.auth-btn,.draft-confirm,.filter-btn,.btn-back,.btn-forfeit,.btn-cancel,.case-buy,.shop-buy,.home-tile,.result-btn';
+
+  // ── Click ripple (delegated; works for dynamically rendered buttons too) ──
+  document.addEventListener('mousedown', function (e) {
+    try {
+      var el = e.target.closest && e.target.closest(BTN_SEL);
+      if (!el) return;
+      var rect = el.getBoundingClientRect();
+      var span = document.createElement('span');
+      span.className = 'btn-ripple';
+      span.style.left = (e.clientX - rect.left) + 'px';
+      span.style.top = (e.clientY - rect.top) + 'px';
+      // ensure host can clip the ripple
+      var cs = getComputedStyle(el);
+      if (cs.position === 'static') el.style.position = 'relative';
+      el.appendChild(span);
+      setTimeout(function () { span.remove(); }, 620);
+    } catch (err) {}
+  }, true);
+
+  // ── Magnetic pull (subtle) on big tiles/buttons. Folds the intended
+  //    hover lift into the transform so CSS hover isn't lost. ──
+  var MAG_SEL = '.home-tile,.title-btn,.result-btn';
+  function bindMagnet(el) {
+    el.addEventListener('mousemove', function (e) {
+      var r = el.getBoundingClientRect();
+      var dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+      var dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+      var nx = Math.max(-1, Math.min(1, dx)) * 5;
+      var ny = Math.max(-1, Math.min(1, dy)) * 5;
+      el.style.transform = 'translate(' + nx + 'px,' + (ny - 4) + 'px) scale(1.03)';
+    });
+    el.addEventListener('mouseleave', function () { el.style.transform = ''; });
+  }
+  function rebindMagnets() {
+    try {
+      document.querySelectorAll(MAG_SEL).forEach(function (el) {
+        if (el._magBound) return; el._magBound = true; bindMagnet(el);
+      });
+    } catch (e) {}
+  }
+  rebindMagnets();
+  // tiles render once at load; re-scan a couple times in case of late DOM
+  setTimeout(rebindMagnets, 800);
+  setTimeout(rebindMagnets, 2500);
+
+  // ── Title ambient particles ──
+  function seedTitleParticles() {
+    var title = document.getElementById('s-title');
+    if (!title || title.querySelector('.title-particles')) return;
+    var box = document.createElement('div');
+    box.className = 'title-particles';
+    for (var i = 0; i < 25; i++) {
+      var p = document.createElement('i');
+      p.style.left = Math.random() * 100 + '%';
+      p.style.setProperty('--drx', ((Math.random() - 0.5) * 60) + 'px');
+      p.style.animationDuration = (6 + Math.random() * 8) + 's';
+      p.style.animationDelay = (Math.random() * 8) + 's';
+      var sz = 2 + Math.random() * 4;
+      p.style.width = sz + 'px'; p.style.height = sz + 'px';
+      box.appendChild(p);
+    }
+    title.insertBefore(box, title.firstChild);
+  }
+  seedTitleParticles();
+
+  // ── Result screen: victory confetti / defeat vignette ──
+  var resultEl = document.getElementById('s-result');
+  var vignette = null;
+  function ensureVignette() {
+    if (vignette) return vignette;
+    vignette = document.createElement('div'); vignette.id = 'result-defeat-vignette';
+    document.body.appendChild(vignette); return vignette;
+  }
+  function burstConfetti() {
+    var colors = ['#c9a84c', '#f0d080', '#00e5cc', '#8b2fff', '#ff6ec7', '#ffffff'];
+    for (var i = 0; i < 70; i++) {
+      var c = document.createElement('div');
+      c.className = 'confetti-piece';
+      c.style.background = colors[(Math.random() * colors.length) | 0];
+      c.style.setProperty('--cx', ((Math.random() - 0.5) * 900) + 'px');
+      c.style.setProperty('--cy', (260 + Math.random() * 460) + 'px');
+      c.style.setProperty('--cr', ((Math.random() - 0.5) * 1200) + 'deg');
+      c.style.animationDelay = (Math.random() * 0.25) + 's';
+      c.style.left = (48 + Math.random() * 4) + '%';
+      document.body.appendChild(c);
+      (function (el) { setTimeout(function () { el.remove(); }, 2100); })(c);
+    }
+  }
+  if (resultEl) {
+    var resObs = new MutationObserver(function () {
+      var visible = !resultEl.classList.contains('hidden');
+      var v = ensureVignette();
+      if (!visible) { v.style.opacity = '0'; return; }
+      var titleEl = document.getElementById('result-title');
+      var win = titleEl && /win/.test(titleEl.className);
+      if (win) { v.style.opacity = '0'; setTimeout(burstConfetti, 120); }
+      else { v.style.opacity = '1'; }
+    });
+    resObs.observe(resultEl, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // ── Generic number ticker for any element opting in with class .ticker ──
+  if (typeof gsap !== 'undefined') {
+    try {
+      var tObs = new MutationObserver(function (muts) {
+        muts.forEach(function (m) {
+          var el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+          if (!el || !el.classList || !el.classList.contains('ticker')) return;
+          var to = parseFloat((el.textContent || '').replace(/[^0-9.\-]/g, ''));
+          if (isNaN(to)) return;
+          var from = el._tickVal || 0; el._tickVal = to;
+          if (from === to) return;
+          var o = { v: from };
+          gsap.to(o, { v: to, duration: 0.9, ease: 'power2.out', onUpdate: function () { el.textContent = Math.round(o.v); } });
+        });
+      });
+      document.querySelectorAll('.ticker').forEach(function (el) {
+        tObs.observe(el, { childList: true, characterData: true, subtree: true });
+      });
+    } catch (e) {}
+  }
 })();
 </script>
 
