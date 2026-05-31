@@ -843,6 +843,41 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 /* ── Tooltip & toast polished glass ───────────────────────── */
 #tooltip, .toast { background: var(--glass-bg); backdrop-filter: blur(16px) saturate(180%); border:1px solid rgba(106,47,255,0.35); }
 
+/* ════════════════════════════════════════════════════════════════════
+   FRONTLINE / BACKLINE POSITIONING + STATUS EFFECTS
+   ════════════════════════════════════════════════════════════════════ */
+/* Vertical divider between the 2 frontliners and 3 backliners. */
+.pos-divider { position:relative; width:2px; align-self:stretch; margin:0 8px; border-radius:2px;
+  background:linear-gradient(180deg, transparent, rgba(232,197,106,0.35), rgba(106,47,255,0.35), transparent); }
+.pos-divider::before { content:'FRONT'; position:absolute; top:-14px; right:6px; font-family:var(--font-d); font-size:8px; letter-spacing:2px; color:var(--gold); opacity:0.7; white-space:nowrap; }
+.pos-divider::after  { content:'BACK';  position:absolute; top:-14px; left:6px;  font-family:var(--font-d); font-size:8px; letter-spacing:2px; color:var(--muted); opacity:0.7; white-space:nowrap; }
+/* Front = warmer/brighter frame; Back = cooler/dimmer + shield corner. */
+.combatant.pos-front .spirit-portrait, .combatant.pos-front .c-emoji { box-shadow:0 0 0 2px rgba(232,197,106,0.55), 0 0 14px rgba(232,197,106,0.3); }
+.combatant.pos-back  .spirit-portrait, .combatant.pos-back  .c-emoji { box-shadow:0 0 0 2px rgba(90,150,232,0.45), 0 0 10px rgba(60,90,160,0.25); filter:brightness(0.92); }
+.c-portrait-wrap { position:relative; display:inline-flex; }
+.pos-shield-ic { position:absolute; bottom:-4px; right:-4px; font-size:13px; filter:drop-shadow(0 1px 2px #000); opacity:0.85; }
+/* Targeting selection states. */
+.combatant.targetable { cursor:pointer; }
+.combatant.targetable .spirit-portrait, .combatant.targetable .c-emoji { animation:targetPulse 1s ease-in-out infinite; }
+@keyframes targetPulse { 0%,100% { box-shadow:0 0 0 2px var(--gold), 0 0 10px var(--gold-glow); } 50% { box-shadow:0 0 0 3px var(--gold-bright), 0 0 22px var(--gold-bright); } }
+.combatant.pierce-target .spirit-portrait, .combatant.pierce-target .c-emoji { animation:pierceTargetPulse 0.9s ease-in-out infinite; }
+@keyframes pierceTargetPulse { 0%,100% { box-shadow:0 0 0 2px var(--danger), 0 0 12px var(--danger-glow); } 50% { box-shadow:0 0 0 3px #ff6688, 0 0 24px #ff3355; } }
+.combatant.untargetable { opacity:0.4; pointer-events:none; }
+.combatant.untargetable .c-portrait-wrap::after { content:'🔒'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; filter:drop-shadow(0 1px 3px #000); }
+/* Taunt: red glowing ring. Stealth: ghostly shimmer. */
+.combatant.taunted .spirit-portrait, .combatant.taunted .c-emoji { box-shadow:0 0 0 3px #ff3355, 0 0 18px rgba(255,51,85,0.7) !important; }
+.combatant.stealthed { opacity:0.72; }
+.combatant.stealthed .spirit-portrait, .combatant.stealthed .c-emoji { filter:grayscale(0.3) brightness(1.15); animation:stealthShimmer 1.6s ease-in-out infinite; }
+@keyframes stealthShimmer { 0%,100% { opacity:0.55; } 50% { opacity:0.95; } }
+/* Status badges. */
+.c-se-badges { display:flex; flex-wrap:wrap; gap:2px; justify-content:center; max-width:124px; margin-bottom:2px; }
+.se-badge { font-size:9px; line-height:1; padding:1px 3px; border-radius:5px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.12); font-family:var(--font-b); font-weight:600; }
+.se-poison { color:#9bf08a; } .se-bleed { color:#ff6e6e; } .se-vulnerable { color:#ff9bd0; }
+.se-weak { color:#b0b0c0; } .se-silence { color:#c0a0ff; } .se-stealth { color:#cfe0ff; }
+.se-rage { color:#ffae5a; } .se-regen { color:#7affb0; } .se-heal_block { color:#ff5a5a; }
+.se-echo { color:#7ad0ff; } .se-taunt { color:#ff5a7a; } .se-volatile { color:#ffcf5a; }
+.se-fury { color:#fff; background:linear-gradient(135deg,#ff6a00,#ff2a00); border:none; letter-spacing:1px; }
+
 </style>
 </head>
 <body>
@@ -1220,8 +1255,25 @@ const CLASSES = {
 
 // Card types: damage, shield, ally_shield, heal, ally_heal, drain (lifesteal), aoe, buff
 // Effects: burn(dmg/turn), stun(skip), weaken(-atk), slow(-spd)
+// Derive a card's TARGETING type from its existing shape (type/cost/pierce),
+// following the Frontline/Backline guidelines. Explicit card.targeting always wins.
+// Hoisted (function declaration) so it's available when SPIRITS is built below.
+function deriveTargeting(card) {
+  if (card.targeting) return card.targeting;       // explicit override
+  var t = card.type;
+  if (t === 'shield' || t === 'heal' || t === 'buff') return 'self';
+  if (t === 'ally_shield' || t === 'ally_heal')       return 'ally';
+  if (t === 'aoe')   return 'all';
+  if (t === 'drain') return 'random_any';            // chaotic life-steal
+  if (card.pierce)   return 'pierce';                 // shield/position bypass
+  if (t === 'damage') return (card.cost <= 1) ? 'random_front' : 'select_front';
+  return 'select_front';
+}
+
 function mkCard(name, emoji, cost, type, power, desc, effect=null) {
-  return { name, emoji, cost, type, power, desc, effect };
+  const c = { name, emoji, cost, type, power, desc, effect };
+  c.targeting = deriveTargeting(c);
+  return c;
 }
 
 
@@ -1753,6 +1805,8 @@ function buildSpiritPools() {
         effect: t.effect ? {...t.effect} : null,
       };
       if (t.pierce) card.pierce = true;
+      if (t.targeting) card.targeting = t.targeting;
+      card.targeting = deriveTargeting(card);
       return card;
     });
     s.pool = [...s.parts, ...extras];
@@ -2303,8 +2357,48 @@ function toast(msg, ms=1800) {
 // ═══════════════════════════════════════════════════
 let G = {};
 
+// ── Frontline/Backline + status-effect helpers ──────────────────────
+function newStatusEffects() {
+  return { taunt:0, poison:0, bleed:0, shield_boost:0, vulnerable:0, weak:0,
+           silence:0, stealth:0, rage:0, regen:0, heal_block:0, echo:0, volatile:false };
+}
+function getLivingFront(team) { return team.filter(s => !s.dead && s.position === 'front'); }
+function getLivingBack(team)  { return team.filter(s => !s.dead && s.position === 'back'); }
+
+// Who can a given card actually hit on `team`? Encapsulates taunt > stealth >
+// front-wall > backline-exposed rules.
+function getValidTargets(team, card) {
+  const targeting = (card && card.targeting) || deriveTargeting(card || {});
+  const living = team.filter(s => !s.dead);
+  if (targeting === 'all')       return living;
+  if (targeting === 'random_any') return living;
+  if (targeting === 'pierce') {
+    // pierce ignores position but still cannot hit stealthed spirits
+    const t = living.filter(s => !(s.statusEffects && s.statusEffects.stealth > 0));
+    return t.length ? t : living;
+  }
+  // Directed/random-front targeting respects the wall.
+  // Taunt overrides everything (taunted spirits are the only valid targets).
+  const taunted = living.filter(s => s.statusEffects && s.statusEffects.taunt > 0);
+  if (taunted.length) return taunted;
+  // Stealthed spirits are invisible to directed/front attacks.
+  const visible = living.filter(s => !(s.statusEffects && s.statusEffects.stealth > 0));
+  const front = visible.filter(s => s.position === 'front');
+  if (front.length) return front;
+  const back = visible.filter(s => s.position === 'back');
+  if (back.length) return back;        // wall is down → backline exposed
+  return visible.length ? visible : living;
+}
+
+// Apply N stacks/turns of a named status to a spirit (clamped, friendly to MP sync).
+function applyStatus(target, key, amount) {
+  if (!target || !target.statusEffects) return;
+  if (key === 'volatile') { target.statusEffects.volatile = true; return; }
+  target.statusEffects[key] = Math.max(0, (target.statusEffects[key] || 0) + (amount || 0));
+}
+
 function initState(playerTeam, enemyTeam) {
-  function mkCombatant(s, isEnemy) {
+  function mkCombatant(s, isEnemy, slot) {
     const clone = JSON.parse(JSON.stringify(s));
     // For player spirits we use their owned-loadout (4 cards from pool).
     // For enemies & fallback, use signature parts.
@@ -2328,6 +2422,12 @@ function initState(playerTeam, enemyTeam) {
       reviveUsed: false,
       isEnemy,
       firstHit: true,
+      // ── Frontline/Backline positioning ──
+      slot: slot,
+      position: (slot <= 1) ? 'front' : 'back',   // slots 0-1 front, 2-4 back
+      // ── New named status-effect system (layered beside legacy `effects` array) ──
+      statusEffects: newStatusEffects(),
+      furyTurns: 0,         // remaining turns of FURY (rage payoff)
     };
   }
   G = {
@@ -2337,8 +2437,8 @@ function initState(playerTeam, enemyTeam) {
     maxEnergy: 5,
     regenPerTurn: 3,
     enemyEnergy: 5,     // AI uses the same rules as the player now
-    playerTeam: playerTeam.map(s => mkCombatant(s, false)),
-    enemyTeam:  enemyTeam.map(s => mkCombatant(s, true)),
+    playerTeam: playerTeam.map((s, i) => mkCombatant(s, false, i)),
+    enemyTeam:  enemyTeam.map((s, i) => mkCombatant(s, true, i)),
     hand: [],       // {card, owner} — active hand (4 cards start, +2 drawn each turn)
     deck: [],       // {card, owner} — the Veilshard Tome (remaining cards)
     selectedCard: null,
@@ -2425,6 +2525,12 @@ function classMultiplier(attackerCls, defenderCls) {
 // ═══════════════════════════════════════════════════
 function resolveCard(attacker, card, target) {
   if (attacker.dead || target.dead) return;
+  // BLEED: a bleeding spirit takes self-damage each time it plays a card (not on echo repeat).
+  if (!card._isEchoRepeat && attacker.statusEffects && attacker.statusEffects.bleed > 0) {
+    const bd = 10 * attacker.statusEffects.bleed;
+    addLog(`🩸 ${attacker.name} bleeds for ${bd}!`, 'crit');
+    applyDamage(attacker, bd);
+  }
   const atkBonus = attacker.atkMod || 1;
   const clsMult  = classMultiplier(attacker.cls, target.cls);
   const galewingBonus = (attacker.id === 'galewing' && attacker.firstHit) ? 1.2 : 1;
@@ -2462,6 +2568,14 @@ function resolveCard(attacker, card, target) {
   // Weaken target?
   const weakEff = !lunarowlIgnoreWeaken ? attacker.effects.find(e => e.type === 'weaken') : null;
   if (weakEff) power *= weakEff.val;
+
+  // New status outgoing modifiers (layered atop legacy weaken):
+  const ase = attacker.statusEffects;
+  if (ase) {
+    if (ase.weak > 0)  power *= Math.max(0.4, 1 - 0.15 * ase.weak);   // WEAK: -15%/stack, floor 40%
+    if (ase.rage > 0)  power += 8 * ase.rage;                          // RAGE: +8 flat/stack
+    if (attacker.furyTurns > 0) power += (card.power || 0);            // FURY: ~double base damage
+  }
 
   switch (card.type) {
     case 'damage': {
@@ -2606,6 +2720,15 @@ function resolveCard(attacker, card, target) {
   // Pyre Ascension stacks, Riptide flag, Voltage Surge counter, Resonance heal-all, etc.)
   applyEmblemHook('onCardPlayed', side, { attacker, card, target });
 
+  // ECHO: the next card a spirit plays resolves twice, then is consumed.
+  if (!card._isEchoRepeat && attacker.statusEffects && attacker.statusEffects.echo > 0 && !attacker.dead && !target.dead) {
+    attacker.statusEffects.echo = 0;
+    addLog(`✦ ${attacker.name}'s Echo triggers — ${card.name} resolves twice!`, 'warn');
+    card._isEchoRepeat = true;
+    resolveCard(attacker, card, target);
+    delete card._isEchoRepeat;
+  }
+
   checkDeaths();
   renderBattle();
 }
@@ -2627,6 +2750,10 @@ function applyDamage(target, raw, attacker=null, pierce=false) {
   // Fires for whichever side OWNS the target — their emblem mitigates incoming damage.
   const defSide = target.isEnemy ? 'enemy' : 'player';
   dmg = applyEmblemHook('modifyIncomingDamage', defSide, { target, attacker, dmg }) ?? dmg;
+  // VULNERABLE status: +15% incoming damage per stack
+  if (target.statusEffects && target.statusEffects.vulnerable > 0) {
+    dmg = dmg * (1 + 0.15 * target.statusEffects.vulnerable);
+  }
   dmg = Math.max(0, Math.round(dmg));
   if (target.shield > 0 && !pierce) {
     const absorbed = Math.min(target.shield, dmg);
@@ -2686,12 +2813,61 @@ function checkDeaths() {
       addLog(`💀 ${c.name} has fallen!`, 'crit');
       // SFX: spirit eliminated
       SoundManager.play('cardElim');
+      // VOLATILE: on death, deal 40 damage to ALL other living spirits (friend AND foe).
+      // Chain reactions are intentional. Guard against re-entrancy on the same victim.
+      if (c.statusEffects && c.statusEffects.volatile && !c._volatileFired) {
+        c._volatileFired = true;
+        addLog(`💥 ${c.name} explodes! All spirits take 40 damage!`, 'crit');
+        const everyone = [...G.playerTeam, ...G.enemyTeam];
+        for (const other of everyone) {
+          if (other !== c && !other.dead) applyDamage(other, 40, null, true);
+        }
+      }
       // Emblem onDeath: fires for the SIDE that just lost a spirit
       // (Symbiosis, Verdant Collapse, Soul Forge, Phoenix Cycle bookkeeping)
       const deadSide = c.isEnemy ? 'enemy' : 'player';
       applyEmblemHook('onDeath', deadSide, { victim: c });
     }
   }
+}
+
+// ── New named status-effect processing (turn_start / turn_end) ──────
+// Per-team turn boundaries (this engine has shared-energy team turns, not
+// per-spirit turns). Dormant until Phase 2 cards apply these statuses.
+function processStatusEffects(spirit, phase) {
+  if (!spirit || spirit.dead || !spirit.statusEffects) return;
+  const se = spirit.statusEffects;
+  if (phase === 'turn_start') {
+    if (se.poison > 0) {
+      const dmg = 15 * se.poison;
+      addLog(`☠ ${spirit.name} writhes in poison! -${dmg} HP`, 'crit');
+      applyDamage(spirit, dmg);
+      se.poison = Math.max(0, se.poison - 1);
+    }
+    // Duration/stack decay for the timed statuses.
+    ['vulnerable','weak','silence','taunt','stealth','heal_block'].forEach(function (k) {
+      if (se[k] > 0) se[k]--;
+    });
+    // RAGE → FURY: at 10 stacks, become furious for 2 turns and consume rage.
+    if (se.rage >= 10 && spirit.furyTurns <= 0) {
+      spirit.furyTurns = 2; se.rage = 0;
+      addLog(`🔥 ${spirit.name} enters FURY!`, 'warn');
+    }
+  } else if (phase === 'turn_end') {
+    if (se.regen > 0) {
+      if (se.heal_block === 0) {
+        const heal = 20 * se.regen;
+        spirit.hp = Math.min(spirit.maxHp, spirit.hp + heal);
+        addLog(`💚 ${spirit.name} regenerates ${heal} HP`, '');
+      }
+      se.regen = Math.max(0, se.regen - 1);
+    }
+    if (spirit.furyTurns > 0) spirit.furyTurns--;
+  }
+}
+function processTeamStatus(team, phase) {
+  for (const c of team) processStatusEffects(c, phase);
+  checkDeaths();
 }
 
 function processEffects(team) {
@@ -2740,6 +2916,8 @@ function runEnemyTurn() {
     G.enemyEnergy = Math.min(G.maxEnergy, (G.enemyEnergy||0) + Math.max(0, G.regenPerTurn - silence));
   }
   let energy = G.enemyEnergy;
+  // Enemy turn start: poison tick + status decay + fury check.
+  processTeamStatus(G.enemyTeam, 'turn_start');
   const alive = G.enemyTeam.filter(c => !c.dead);
   const playerAlive = G.playerTeam.filter(c => !c.dead);
   if (!alive.length || !playerAlive.length) { nextTurn(); return; }
@@ -2754,17 +2932,29 @@ function runEnemyTurn() {
     if (!cards.length) { energy = 0; break; }
     const card = cards[Math.floor(Math.random() * cards.length)];
 
-    // Pick target: prefer lowest HP player
+    // Pick target — now Frontline/Backline-aware.
+    const tg = card.targeting || deriveTargeting(card);
     let target;
-    if (['shield','heal','buff','ally_shield','ally_heal'].includes(card.type)) {
-      target = alive.sort((a,b)=>a.hp-b.hp)[0];
-    } else if (card.type === 'aoe') {
+    if (['shield','heal','buff','ally_shield','ally_heal'].includes(card.type) || tg === 'self' || tg === 'ally' || tg === 'ally_all') {
+      // enemy buffs/heals its own lowest-HP ally
+      target = alive.slice().sort((a,b)=>a.hp-b.hp)[0];
+    } else if (tg === 'all') {
       target = playerAlive[0];
     } else {
-      // Prefer class advantage
-      const adv = playerAlive.filter(p => CLASSES[attacker.cls].strong === p.cls);
-      target = adv.length ? adv[0] : playerAlive.sort((a,b)=>a.hp-b.hp)[0];
+      // Attacks on the player respect the player's front wall + taunt via getValidTargets.
+      const pool = getValidTargets(G.playerTeam, card);
+      const fallback = playerAlive;
+      const choices = pool.length ? pool : fallback;
+      if (tg === 'pierce') {
+        // smart pierce → hit the player's lowest-HP living spirit
+        target = choices.slice().sort((a,b)=>a.hp-b.hp)[0];
+      } else {
+        // prefer class advantage within the valid pool, else random
+        const adv = choices.filter(p => CLASSES[attacker.cls].strong === p.cls);
+        target = adv.length ? adv[0] : choices[Math.floor(Math.random()*choices.length)];
+      }
     }
+    if (!target) { energy = 0; break; }
     actions.push({ card, attacker, target });
     energy -= card.cost;
   }
@@ -2789,6 +2979,7 @@ function runEnemyTurn() {
 function nextTurn() {
   // End-of-round bookkeeping: enemy turn just finished → both sides completed a turn = round end
   applyEmblemHook('turnEnd', 'enemy', { team: G.enemyTeam });
+  processTeamStatus(G.enemyTeam, 'turn_end');   // enemy regen/fury decay
   G.roundCounter = (G.roundCounter||0) + 1;
   applyEmblemHook('roundEnd', 'player', { team: G.playerTeam });
   applyEmblemHook('roundEnd', 'enemy',  { team: G.enemyTeam });
@@ -2807,6 +2998,8 @@ function nextTurn() {
   G.energy = Math.min(G.maxEnergy, G.energy + Math.max(0, G.regenPerTurn - playerSilencePenalty));
   G.phase = 'player';
   applyEmblemHook('turnStart', 'player', { team: G.playerTeam });
+  processTeamStatus(G.playerTeam, 'turn_start');   // player poison tick + status decay + fury check
+  if (G.playerTeam.every(c => c.dead)) { endGame(false); return; }
   G.selectedCard = null;
   G.selectedCardIdx = null;
   G.pendingActions = [];
@@ -2865,6 +3058,7 @@ function endTurn() {
   }
   G.phase = 'enemy';
   applyEmblemHook('turnEnd', 'player', { team: G.playerTeam });
+  processTeamStatus(G.playerTeam, 'turn_end');   // player regen/fury decay at end of player turn
   applyEmblemHook('turnStart', 'enemy', { team: G.enemyTeam });
   renderBattle();
   addLog('── Enemy turn ──', '');
@@ -2919,6 +3113,12 @@ function selectCard(idx) {
   if (G.phase !== 'player') return;
   const { card, owner } = G.hand[idx];
   if (owner.dead) return;
+  // SILENCE: a silenced spirit may only play attack cards (damage/aoe/drain).
+  const _isAttackCard = (card.type === 'damage' || card.type === 'aoe' || card.type === 'drain');
+  if (owner.statusEffects && owner.statusEffects.silence > 0 && !_isAttackCard) {
+    addLog(`🔇 ${owner.name} is silenced and cannot use ${card.name}!`, 'crit');
+    return;
+  }
   // Emblem modifyCardCost: Cinder Rush, Ragnarok Seal, Voltage Surge token, etc.
   const costCtx = { card, cardIdx: idx, owner, cost: card.cost, free: false };
   applyEmblemHook('modifyCardCost', 'player', costCtx);
@@ -2932,8 +3132,10 @@ function selectCard(idx) {
   // SFX: card pulled from deck
   SoundManager.play('cardPlay');
 
-  // Self-target cards
-  if (['shield','heal','buff'].includes(card.type)) {
+  const targeting = card.targeting || deriveTargeting(card);
+
+  // SELF — buff/shield/heal on the owner
+  if (targeting === 'self') {
     G.energy -= effectiveCost;
     G.hand.splice(idx, 1);
     applyCardPlay(owner, card, owner, 'self', G.playerTeam.indexOf(owner));
@@ -2942,14 +3144,22 @@ function selectCard(idx) {
     return;
   }
 
-  // Ally-target cards — need player to click an ally
-  if (card.type === 'ally_shield' || card.type === 'ally_heal') {
-    if (G.selectedCardIdx === idx) {
+  // ALLY — player selects a friendly spirit
+  if (targeting === 'ally' || targeting === 'ally_all') {
+    if (targeting === 'ally_all') {
+      // hits all allies — auto-resolve on the owner as anchor (resolveCard handles ally_* per-type)
+      G.energy -= effectiveCost;
+      G.hand.splice(idx, 1);
+      applyCardPlay(owner, card, owner, 'ally', G.playerTeam.indexOf(owner));
       G.selectedCard = null;
-      G.selectedCardIdx = null;
+      renderBattle();
+      return;
+    }
+    if (G.selectedCardIdx === idx) {
+      G.selectedCard = null; G.selectedCardIdx = null;
       document.getElementById('btn-cancel').classList.add('hidden');
     } else {
-      G.selectedCard = { card, owner, idx, targetMode: 'ally' };
+      G.selectedCard = { card, owner, idx, targetMode: 'ally', _spendCost: effectiveCost };
       G.selectedCardIdx = idx;
       document.getElementById('btn-cancel').classList.remove('hidden');
       addLog(`Select an ally target for ${card.name}`, 'warn');
@@ -2958,38 +3168,43 @@ function selectCard(idx) {
     return;
   }
 
-  // AOE: auto-hits all enemies
-  if (card.type === 'aoe') {
+  // ALL — AoE hits every living enemy
+  if (targeting === 'all') {
     G.energy -= effectiveCost;
     G.hand.splice(idx, 1);
-    const target = G.enemyTeam.find(e => !e.dead);
-    if (target) applyCardPlay(owner, card, target, 'aoe', G.enemyTeam.indexOf(target));
+    const t = G.enemyTeam.find(e => !e.dead);
+    if (t) applyCardPlay(owner, card, t, 'aoe', G.enemyTeam.indexOf(t));
     G.selectedCard = null;
     renderBattle();
     return;
   }
 
-  // Drain: targets enemy
-  if (card.type === 'drain') {
+  // RANDOM_FRONT / RANDOM_ANY — auto-resolve, no player target choice
+  if (targeting === 'random_front' || targeting === 'random_any') {
+    const pool = getValidTargets(G.enemyTeam, card);
+    if (!pool.length) { addLog('No valid target!', 'crit'); return; }
+    const t = pool[Math.floor(Math.random() * pool.length)];
+    const tIdx = G.enemyTeam.indexOf(t);
     G.energy -= effectiveCost;
     G.hand.splice(idx, 1);
-    const target = G.enemyTeam.find(e => !e.dead);
-    if (target) applyCardPlay(owner, card, target, 'enemy', G.enemyTeam.indexOf(target));
+    addLog(`${card.name} strikes ${t.name} at random!`, '');
+    shakeEl(t);
+    applyCardPlay(owner, card, t, 'enemy', tIdx);
     G.selectedCard = null;
     renderBattle();
     return;
   }
 
-  // Damage: need player to select a target
+  // SELECT_FRONT / PIERCE — player picks a target (validity enforced in clickEnemy + UI)
   if (G.selectedCardIdx === idx) {
     G.selectedCard = null;
     G.selectedCardIdx = null;
     document.getElementById('btn-cancel').classList.add('hidden');
   } else {
-    G.selectedCard = { card, owner, idx };
+    G.selectedCard = { card, owner, idx, targetMode: 'enemy', pierce: (targeting === 'pierce'), _spendCost: effectiveCost };
     G.selectedCardIdx = idx;
     document.getElementById('btn-cancel').classList.remove('hidden');
-    addLog(`Select an enemy target for ${card.name}`, '');
+    addLog(targeting === 'pierce' ? `⚔ PIERCE — select ANY enemy for ${card.name}` : `Select a frontline target for ${card.name}`, targeting === 'pierce' ? 'warn' : '');
   }
   renderBattle();
 }
@@ -3008,9 +3223,15 @@ function clickEnemy(idx) {
     return;
   }
   const target = G.enemyTeam[idx];
-  if (target.dead) return;
+  if (!target || target.dead) return;
   const { card, owner, idx: handIdx } = G.selectedCard;
-  const spendCost = G.selectedCard._freeCost ? 0 : card.cost;
+  // Enforce Frontline/Backline rules: the clicked spirit must be a valid target.
+  const valid = getValidTargets(G.enemyTeam, card);
+  if (valid.indexOf(target) === -1) {
+    addLog(`${target.name} can't be targeted — strike the frontline first!`, 'crit');
+    return;
+  }
+  const spendCost = G.selectedCard._freeCost ? 0 : (G.selectedCard._spendCost != null ? G.selectedCard._spendCost : card.cost);
   G.energy -= spendCost;
   if (handIdx !== undefined) G.hand.splice(handIdx, 1);
   applyCardPlay(owner, card, target, 'enemy', idx);
@@ -3026,7 +3247,7 @@ function clickAlly(idx) {
   const target = G.playerTeam[idx];
   if (target.dead) return;
   const { card, owner, idx: handIdx } = G.selectedCard;
-  const spendCostAlly = G.selectedCard._freeCost ? 0 : card.cost;
+  const spendCostAlly = G.selectedCard._freeCost ? 0 : (G.selectedCard._spendCost != null ? G.selectedCard._spendCost : card.cost);
   G.energy -= spendCostAlly;
   if (handIdx !== undefined) G.hand.splice(handIdx, 1);
   applyCardPlay(owner, card, target, 'ally', idx);
@@ -3057,19 +3278,57 @@ function hpColor(pct) {
   return 'linear-gradient(90deg,#e84040,#c02020)';
 }
 
+// Small badge row for the new named status effects (stacks/turns shown as count).
+function statusBadgesHtml(c) {
+  const se = c.statusEffects; if (!se) return '';
+  const defs = [
+    ['poison','☠',se.poison], ['bleed','🩸',se.bleed], ['vulnerable','💔',se.vulnerable],
+    ['weak','🔻',se.weak], ['silence','🔇',se.silence], ['stealth','👻',se.stealth],
+    ['rage','😡',se.rage], ['regen','💚',se.regen], ['heal_block','🚫',se.heal_block],
+    ['echo','🔁',se.echo], ['taunt','🛑',se.taunt]
+  ];
+  let html = '';
+  for (const [k, icon, v] of defs) if (v > 0) html += `<span class="se-badge se-${k}" title="${k} ${v}">${icon}${v}</span>`;
+  if (se.volatile)        html += `<span class="se-badge se-volatile" title="volatile">💣</span>`;
+  if (c.furyTurns > 0)    html += `<span class="se-badge se-fury" title="FURY ${c.furyTurns}">⚡FURY</span>`;
+  return html ? `<div class="c-se-badges">${html}</div>` : '';
+}
+
 function renderRow(id, team, isEnemy) {
   const row = document.getElementById(id);
   row.innerHTML = '';
   const allyMode = G.selectedCard && G.selectedCard.targetMode === 'ally';
   const enemyMode = G.selectedCard && !allyMode;
+  // During enemy targeting, compute who is actually a legal target (front-wall/taunt/pierce/stealth).
+  const selCard = G.selectedCard && G.selectedCard.card;
+  const validSet = (isEnemy && enemyMode && selCard) ? new Set(getValidTargets(team, selCard)) : null;
+  const isPierce = !!(G.selectedCard && G.selectedCard.pierce);
+
   team.forEach((c, i) => {
+    // Insert the FRONT|BACK divider between slot 1 and 2.
+    if (i === 2) {
+      const divr = document.createElement('div');
+      divr.className = 'pos-divider';
+      row.appendChild(divr);
+    }
     const pct = Math.max(0, c.hp / c.maxHp);
     const statusIcons = c.effects.map(e => ({burn:'🔥',stun:'⚡',weaken:'💀',slow:'🐢'}[e.type]||'')).filter(Boolean).join('');
-    const isClickable = !c.dead && ((isEnemy && enemyMode) || (!isEnemy && allyMode));
-    const highlightCls = isClickable ? (isEnemy ? ' clickable enemy-highlight' : ' clickable highlight') : '';
+
+    const targetable = !c.dead && isEnemy && enemyMode && (!validSet || validSet.has(c));
+    const untargetable = !c.dead && isEnemy && enemyMode && validSet && !validSet.has(c);
+    const isClickable = targetable || (!c.dead && !isEnemy && allyMode);
+
+    let cls = 'combatant';
+    cls += (c.position === 'back') ? ' pos-back' : ' pos-front';
+    if (c.dead) cls += ' dead';
+    if (isClickable) cls += (isEnemy ? ' clickable enemy-highlight' : ' clickable highlight');
+    if (targetable)   cls += isPierce ? ' targetable pierce-target' : ' targetable';
+    if (untargetable) cls += ' untargetable';
+    if (c.statusEffects && c.statusEffects.taunt > 0)   cls += ' taunted';
+    if (c.statusEffects && c.statusEffects.stealth > 0) cls += ' stealthed';
 
     const div = document.createElement('div');
-    div.className = 'combatant' + (c.dead?' dead':'') + highlightCls;
+    div.className = cls;
     div.setAttribute('aria-describedby', 'tooltip');
     div.setAttribute('data-idx', i);
     div.id = 'comb-' + (isEnemy?'e':'p') + i;
@@ -3077,9 +3336,11 @@ function renderRow(id, team, isEnemy) {
     const portraitHtml = (c.img && SPIRIT_IMGS[c.name])
       ? `<img src="${SPIRIT_IMGS[c.name]}" class="spirit-portrait" alt="${c.name}">`
       : `<div class="c-emoji">${c.emoji}</div>`;
+    const backShield = (c.position === 'back' && !c.dead) ? `<div class="pos-shield-ic" title="Backline — protected">🛡</div>` : '';
     div.innerHTML = `
       <div class="c-status">${statusIcons}</div>
-      ${portraitHtml}
+      ${statusBadgesHtml(c)}
+      <div class="c-portrait-wrap">${portraitHtml}${backShield}</div>
       <div class="c-hp-bar"><div class="c-hp-fill" style="width:${Math.round(pct*100)}%;background:${hpColor(pct)};"></div></div>
       <div class="c-name">${c.name}</div>
       ${c.shield > 0 ? `<div style="font-size:10px;color:#a0c8ff;">🛡${c.shield}/${200}</div>` : ''}
@@ -4558,6 +4819,9 @@ function mpSerializeCombatant(c) {
     id: c.id, name: c.name, emoji: c.emoji, cls: c.cls, img: c.img||0,
     hp: c.hp, maxHp: c.maxHp, atk: c.atk, spd: c.spd, dead: !!c.dead,
     isEnemy: !!c.isEnemy, shield: c.shield||0, slot: c.slot,
+    position: c.position,                                  // front/back positioning
+    statusEffects: c.statusEffects ? {...c.statusEffects} : newStatusEffects(),
+    furyTurns: c.furyTurns || 0,
     effects: (c.effects||[]).map(e => ({...e})),
     reviveUsed: !!c.reviveUsed, _base_atk: c._base_atk, _stonewyrm_stacks: c._stonewyrm_stacks||0,
   };
@@ -4589,6 +4853,11 @@ function mpApplyState(state) {
       a.shield = b.shield||0; a.atk = b.atk;
       a.effects = (b.effects||[]).map(e=>({...e}));
       a.reviveUsed = !!b.reviveUsed;
+      // Sync positioning + named status effects so the client renders matching badges.
+      if (b.position) a.position = b.position;
+      if (b.slot != null) a.slot = b.slot;
+      a.statusEffects = b.statusEffects ? {...b.statusEffects} : (a.statusEffects || newStatusEffects());
+      a.furyTurns = b.furyTurns || 0;
     }
   }
   // Client side: G.playerTeam already represents client's team; remote.playerTeam too.
