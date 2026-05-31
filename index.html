@@ -82,10 +82,24 @@ button:active { transform:scale(0.97); }
 .draft-header h2 { font-family:var(--font-d); font-size:22px; color:var(--gold); letter-spacing:3px; }
 .draft-header p { color:var(--muted); font-size:13px; margin-top:4px; }
 .draft-team-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:10px 0; }
-.draft-slot { width:72px; height:90px; border:2px dashed var(--faint); border-radius:var(--r); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--faint); transition:all 0.2s; }
-.draft-slot.filled { border-style:solid; border-color:var(--gold); background:rgba(232,197,106,0.06); }
+.draft-slot { position:relative; width:72px; height:90px; border:2px dashed var(--faint); border-radius:var(--r); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--faint); transition:all 0.2s; }
+.draft-slot.filled { border-style:solid; background:rgba(232,197,106,0.06); }
 .draft-slot .slot-emoji { font-size:26px; }
 .draft-slot .slot-name { font-size:10px; color:var(--gold); text-align:center; line-height:1.2; }
+/* Front vs back slot theming so the player sees their wall while drafting. */
+.draft-slot.slot-front { border-color:rgba(232,197,106,0.55); background:rgba(232,197,106,0.05); }
+.draft-slot.slot-front.filled { border-color:var(--gold); box-shadow:0 0 12px var(--gold-glow); }
+.draft-slot.slot-back  { border-color:rgba(90,150,232,0.45); background:rgba(90,150,232,0.05); }
+.draft-slot.slot-back.filled { border-color:#5a96e8; box-shadow:0 0 12px rgba(90,150,232,0.35); }
+.slot-pos-tag { position:absolute; top:-9px; left:50%; transform:translateX(-50%); font-family:var(--font-d); font-size:7px; letter-spacing:2px; padding:1px 6px; border-radius:50px; white-space:nowrap; }
+.slot-front .slot-pos-tag { color:#1a1206; background:linear-gradient(135deg,var(--gold-bright),var(--gold)); }
+.slot-back  .slot-pos-tag { color:#dfeaff; background:linear-gradient(135deg,#5a96e8,#2f5fa8); }
+/* Group labels (FRONTLINE / BACKLINE) that sit between the slot groups. */
+.draft-group-label { align-self:center; display:flex; flex-direction:column; justify-content:center; text-align:center; padding:0 4px; min-width:64px; }
+.dgl-title { font-family:var(--font-d); font-size:11px; letter-spacing:1px; line-height:1.2; }
+.dgl-sub { font-size:8px; color:var(--muted); margin-top:2px; line-height:1.2; max-width:74px; }
+.dgl-front .dgl-title { color:var(--gold); }
+.dgl-back  .dgl-title { color:#7fb0ff; }
 .draft-roster-title { font-family:var(--font-d); font-size:13px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; padding:12px 0 8px; }
 .draft-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; width:100%; max-width:820px; }
 .roster-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:12px; cursor:pointer; transition:all 0.2s var(--ease); position:relative; overflow:hidden; }
@@ -3636,16 +3650,28 @@ function renderDraftSlots() {
   const row = document.getElementById('draft-slots');
   row.innerHTML = '';
   for (let i = 0; i < 5; i++) {
+    // Group label + divider: slots 1-2 = FRONTLINE, slots 3-5 = BACKLINE.
+    if (i === 0) row.appendChild(makeDraftGroupLabel('🛡 FRONTLINE', 'Exposed — takes the hits', 'front'));
+    if (i === 2) row.appendChild(makeDraftGroupLabel('✦ BACKLINE', 'Protected behind the wall', 'back'));
+    const isFront = i <= 1;
     const div = document.createElement('div');
-    div.className = 'draft-slot' + (draftSelected[i] ? ' filled' : '');
+    div.className = 'draft-slot ' + (isFront ? 'slot-front' : 'slot-back') + (draftSelected[i] ? ' filled' : '');
+    const posBadge = `<span class="slot-pos-tag">${isFront ? 'FRONT' : 'BACK'}</span>`;
     div.innerHTML = draftSelected[i]
-      ? `<span class="slot-emoji">${draftSelected[i].emoji}</span><span class="slot-name">${draftSelected[i].name}</span>`
-      : `<span style="font-size:20px">+</span><span>Slot ${i+1}</span>`;
+      ? `${posBadge}<span class="slot-emoji">${draftSelected[i].emoji}</span><span class="slot-name">${draftSelected[i].name}</span>`
+      : `${posBadge}<span style="font-size:20px">+</span><span>Slot ${i+1}</span>`;
     row.appendChild(div);
   }
   document.getElementById('draft-status').textContent =
-    draftSelected.length < 5 ? `Choose ${5-draftSelected.length} more spirit${5-draftSelected.length!==1?'s':''}` : 'Team ready!';
+    draftSelected.length < 5 ? `Choose ${5-draftSelected.length} more spirit${5-draftSelected.length!==1?'s':''} · first 2 = Frontline, next 3 = Backline` : 'Team ready! (Slots 1-2 frontline, 3-5 backline)';
   document.getElementById('draft-confirm').disabled = draftSelected.length < 5;
+}
+
+function makeDraftGroupLabel(title, sub, which) {
+  const d = document.createElement('div');
+  d.className = 'draft-group-label dgl-' + which;
+  d.innerHTML = `<div class="dgl-title">${title}</div><div class="dgl-sub">${sub}</div>`;
+  return d;
 }
 
 function renderDraftGrid() {
