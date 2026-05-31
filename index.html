@@ -1857,6 +1857,104 @@ buildSpiritPools();
   }
 })();
 
+// ═══════════════════════════════════════════════════
+// PHASE 2 — NEW MECHANIC CARDS (thematically distributed)
+// Each mechanic lives on ~2 spirits. Added to those spirits' pools (unlockable +
+// used by enemies); a curated few are promoted to default-active signatures.
+// ═══════════════════════════════════════════════════
+function mkAdv(name, emoji, cost, type, power, targeting, desc, apply, extra) {
+  const c = { name, emoji, cost, type, power, desc, targeting, effect: null, apply: apply || null };
+  if (extra) Object.assign(c, extra);   // lifesteal / special / pierce
+  return c;
+}
+const _A = (k, n, to) => ({ k, n, to: to || 'target' });   // status-apply shorthand
+
+// mkAdv(name, emoji, cost, TYPE, power, TARGETING, desc, apply, extra)
+//   TYPE drives resolution (damage/aoe/shield/ally_shield/heal/ally_heal/drain/buff);
+//   TARGETING drives who can be targeted (select_front/random_front/random_any/pierce/all/self/ally).
+const NEW_CARDS = {
+  // ── TAUNT (tanks) ──
+  cinderwolf: [ mkAdv('Taunt Cry','📢',2,'buff',0,'self','Roar a challenge — draw all attacks for 2 turns.',[_A('taunt',2,'self')]) ],
+  stoneboar:  [ mkAdv('Bastion Call','🛡',2,'shield',80,'self','Raise a wall and demand the enemy strike you (Taunt 2).',[_A('taunt',2,'self')]) ],
+  // ── BLEED (vicious) ──
+  shadowleech:[ mkAdv('Bloodletter','🩸',1,'damage',40,'random_front','Quick cut on a random frontliner. Apply Bleed 2.',[_A('bleed',2,'target')]) ],
+  thornwarden:[ mkAdv('Rending Thorns','🌵',3,'damage',90,'select_front','Tear deep. Apply Bleed 2.',[_A('bleed',2,'target')]) ],
+  // ── POISON (toxic) ──
+  sporekin:   [ mkAdv('Venom Strike','☠',2,'damage',60,'select_front','Envenomed jab. Apply Poison 2.',[_A('poison',2,'target')]) ],
+  abyssalworm:[ mkAdv('Toxic Spew','🤢',2,'damage',50,'random_any','Spray acid at a random foe. Apply Poison 2.',[_A('poison',2,'target')]),
+                mkAdv('Burrow Strike','🪱',4,'damage',110,'pierce','Erupt from below ANY enemy, ignoring the frontline.',null,{pierce:true}) ],
+  // ── VULNERABLE / WEAK (debuffers) ──
+  wraithlily: [ mkAdv('Rending Blow','💔',3,'damage',90,'select_front','Shatter defenses. Apply Vulnerable 3.',[_A('vulnerable',3,'target')]) ],
+  corrupted:  [ mkAdv('Hex of Frailty','🔮',2,'damage',0,'select_front','A curse of frailty — minimal damage. Apply Vulnerable 2 + Weak 2.',[_A('vulnerable',2,'target'),_A('weak',2,'target')]) ],
+  murkelemental:[ mkAdv('Enfeeble','🌫',2,'damage',30,'select_front','Sap their strength. Apply Weak 3.',[_A('weak',3,'target')]) ],
+  dunespecter:[ mkAdv('Sapping Sands','🏜',2,'damage',35,'random_any','Grinding sand wears a random foe down. Apply Weak 2.',[_A('weak',2,'target')]) ],
+  // ── SILENCE (control) ──
+  glaciersphinx:[ mkAdv('Silence Ward','🤫',2,'damage',30,'select_front','Seal their voice. Apply Silence 2 turns.',[_A('silence',2,'target')]) ],
+  inkwraith:  [ mkAdv('Ink Gag','🖋',2,'damage',40,'select_front','Smother in ink. Apply Silence 2 turns.',[_A('silence',2,'target')]) ],
+  // ── STEALTH (assassins, self) ──
+  nightstalker:[ mkAdv('Vanish','👻',2,'buff',0,'self','Slip into shadow — untargetable by directed attacks for 2 turns.',[_A('stealth',2,'self')]),
+                 mkAdv("Assassin's Mark",'🗡',4,'damage',120,'pierce','Strike ANY enemy for massive damage, ignoring the frontline.',null,{pierce:true}) ],
+  mistwalker: [ mkAdv('Mist Cloak','🌁',2,'buff',0,'self','Dissolve into mist — Stealth 2 turns.',[_A('stealth',2,'self')]) ],
+  // ── RAGE / FURY (berserkers, self) ──
+  scorchdrake:[ mkAdv("Berserker's Oath",'😡',2,'buff',0,'self','Swear in blood: gain Rage 5, but Bleed 1 on yourself.',[_A('rage',5,'self'),_A('bleed',1,'self')]) ],
+  cycloneape: [ mkAdv('War Cry','🦍',2,'buff',0,'self','Beat your chest — gain Rage 5.',[_A('rage',5,'self')]),
+                mkAdv('Rampage','💢',0,'damage',30,'random_any','Free flailing blow. If raging, also apply Vulnerable 1.',null,{special:'rampage'}) ],
+  // ── REGEN (healers, ally) ──
+  bloomsprite:[ mkAdv('Mending Wave','💞',2,'ally_heal',80,'ally','Heal an ally 80 and grant Regen 2.',[_A('regen',2,'target')]) ],
+  willowsage: [ mkAdv('Renewal','🌱',2,'ally_heal',60,'ally','Heal an ally 60 and grant Regen 2.',[_A('regen',2,'target')]),
+                mkAdv('Purify','🪷',2,'buff',0,'ally','Cleanse ALL debuffs from an ally.',null,{special:'cleanse'}) ],
+  // ── HEAL BLOCK ──
+  eclipsehound:[ mkAdv('Dread Curse','🌑',2,'damage',40,'select_front','Forbid their mending. Apply Heal Block 2 turns.',[_A('heal_block',2,'target')]) ],
+  entropion:  [ mkAdv('Entropy Hex','🕳',2,'damage',30,'select_front','Unravel them. Apply Heal Block 2 + Weak 1.',[_A('heal_block',2,'target'),_A('weak',1,'target')]) ],
+  // ── ECHO (arcane, self) ──
+  mirrorfiend:[ mkAdv('Mirror Echo','🔁',3,'buff',0,'self','Your next card resolves twice.',[_A('echo',1,'self')]) ],
+  thundermoth:[ mkAdv('Resonant Pulse','〰',3,'buff',0,'self','Resonance — your next card resolves twice.',[_A('echo',1,'self')]) ],
+  // ── VOLATILE (explosive, self) ──
+  magmacrab:  [ mkAdv('Unstable Core','💣',2,'shield',60,'self','Shield up and grow Volatile — explode for 40 to all on death.',[_A('volatile',1,'self')]) ],
+  cinderspectre:[ mkAdv('Spectral Bomb','👹',2,'buff',0,'self','Become Volatile — detonate for 40 to all spirits when you fall.',[_A('volatile',1,'self')]) ],
+  vortexeel:  [ mkAdv('Death Pact','⚰',3,'buff',0,'self','Embrace doom: become Volatile and gain Rage 3.',[_A('volatile',1,'self'),_A('rage',3,'self')]) ],
+  // ── DRAIN / LIFESTEAL ──
+  abysswhale: [ mkAdv('Devour','🐋',3,'damage',90,'select_front','Bite deep and heal for 50% of damage dealt.',null,{lifesteal:0.5}) ],
+  // ── NULLIFY (support cleanse) ──
+  coralsprite:[ mkAdv('Nullify','✨',2,'buff',0,'ally','Cleanse ALL debuffs from an ally.',null,{special:'cleanse'}) ],
+  // ── WALL OF IRON (front-bonus shield) ──
+  crystalgolem:[ mkAdv('Wall of Iron','🧱',1,'shield',60,'self','Gain shield; if in the FRONTLINE, +30 bonus shield.',null,{special:'wallOfIron'}) ],
+  mossbear:   [ mkAdv('Iron Hide','🐻',1,'shield',70,'self','Gain shield; if in the FRONTLINE, +30 bonus shield.',null,{special:'wallOfIron'}) ],
+  // ── RAMPAGE (chaotic 0-cost) ──
+  sunhare:    [ mkAdv('Frenzy Dash','🐇',0,'damage',30,'random_any','Free dash strike. If raging, also apply Vulnerable 1.',null,{special:'rampage'}) ],
+};
+// shadowleech also gets the iconic Soul Drain (separate so it can be a signature promo)
+NEW_CARDS.shadowleech.push(mkAdv('Soul Drain','🩸',3,'damage',70,'random_any','Drain a random foe for 70 and heal 50% of the damage.',null,{lifesteal:0.5}));
+
+// Add every new card into its spirit's POOL (unlockable + drawn by enemy AI).
+(function placeNewCards() {
+  for (const sid in NEW_CARDS) {
+    const s = SPIRITS.find(x => x.id === sid);
+    if (!s) continue;
+    s.pool = s.pool || s.parts.slice();
+    for (const card of NEW_CARDS[sid]) {
+      if (!s.pool.some(c => c.name === card.name)) s.pool.push(card);
+    }
+  }
+})();
+
+// Promote a few iconic cards to default-active signatures by REPLACING one
+// existing signature (keeps parts at length 4; the replaced card stays in pool).
+(function promoteSignatures() {
+  const PROMOS = [
+    ['cinderwolf', 'Taunt Cry'], ['shadowleech', 'Soul Drain'], ['nightstalker', 'Vanish'],
+    ['mirrorfiend', 'Mirror Echo'], ['bloomsprite', 'Mending Wave'], ['scorchdrake', "Berserker's Oath"]
+  ];
+  for (const [sid, cardName] of PROMOS) {
+    const s = SPIRITS.find(x => x.id === sid);
+    if (!s || !s.parts || s.parts.length < 4) continue;
+    const card = s.pool.find(c => c.name === cardName);
+    if (!card) continue;
+    if (s.parts.some(c => c.name === cardName)) continue;   // already a signature
+    s.parts[3] = card;   // replace the 4th signature; old card remains in pool
+  }
+})();
+
 // Map of cost to unlock an individual card (per rarity by cost) — legacy, kept for safety
 function cardUnlockCost(card) {
   return card.cost === 1 ? 80 : card.cost === 2 ? 120 : 180;
@@ -2440,6 +2538,61 @@ function applyStatus(target, key, amount) {
   target.statusEffects[key] = Math.max(0, (target.statusEffects[key] || 0) + (amount || 0));
 }
 
+// Heal that respects HEAL BLOCK + max-HP cap. Returns HP actually restored.
+function healSpirit(target, amount) {
+  if (!target || amount <= 0) return 0;
+  if (target.statusEffects && target.statusEffects.heal_block > 0) {
+    addLog(`🚫 ${target.name}'s healing is blocked!`, 'warn');
+    return 0;
+  }
+  const before = target.hp;
+  target.hp = Math.min(target.maxHp, target.hp + amount);
+  return target.hp - before;
+}
+
+// Data-driven status application: cards carry `apply:[{k,n,to}]`.
+// to ∈ 'self' | 'target' | 'allEnemies' | 'allAllies'.
+const _STATUS_ICON = { taunt:'🛑', poison:'☠', bleed:'🩸', vulnerable:'💔', weak:'🔻',
+  silence:'🔇', stealth:'👻', rage:'😡', regen:'💚', heal_block:'🚫', echo:'🔁', volatile:'💣' };
+function applyCardStatuses(attacker, target, card) {
+  if (!card || !card.apply || !card.apply.length) return;
+  const oppTeam  = attacker.isEnemy ? G.playerTeam : G.enemyTeam;
+  const allyTeam = attacker.isEnemy ? G.enemyTeam : G.playerTeam;
+  for (const a of card.apply) {
+    let rec = [];
+    if (a.to === 'self')        rec = [attacker];
+    else if (a.to === 'target') rec = target ? [target] : [];
+    else if (a.to === 'allEnemies') rec = oppTeam.filter(c => !c.dead);
+    else if (a.to === 'allAllies')  rec = allyTeam.filter(c => !c.dead);
+    for (const r of rec) {
+      if (!r || r.dead) continue;
+      applyStatus(r, a.k, a.n);
+      addLog(`${_STATUS_ICON[a.k]||'✦'} ${r.name}: ${a.k}${a.n ? ' '+a.n : ''}`, 'warn');
+    }
+  }
+}
+
+// Bespoke one-off card behaviours that don't fit the generic appliers.
+function applyCardSpecial(attacker, target, card) {
+  if (!card || !card.special) return;
+  if (card.special === 'cleanse' && target) {
+    const se = target.statusEffects;
+    if (se) ['poison','bleed','vulnerable','weak','silence','heal_block','taunt'].forEach(k => se[k] = 0);
+    target.effects = (target.effects || []).filter(e => !['burn','stun','weaken','slow'].includes(e.type));
+    addLog(`✨ ${target.name} is cleansed of all debuffs!`, 'em');
+  } else if (card.special === 'wallOfIron') {
+    if (attacker.position === 'front') {
+      attacker.shield = Math.min(200, (attacker.shield||0) + 30);
+      addLog(`🛡 ${attacker.name} (frontline) gains +30 bonus shield!`, '');
+    }
+  } else if (card.special === 'rampage') {
+    if (attacker.statusEffects && attacker.statusEffects.rage > 0 && target && !target.dead) {
+      applyStatus(target, 'vulnerable', 1);
+      addLog(`💔 Rampage marks ${target.name} Vulnerable!`, 'warn');
+    }
+  }
+}
+
 function initState(playerTeam, enemyTeam) {
   function mkCombatant(s, isEnemy, slot) {
     const clone = JSON.parse(JSON.stringify(s));
@@ -2628,6 +2781,11 @@ function resolveCard(attacker, card, target) {
       const dmg = applyDamage(target, Math.round(power) + (dmgCtx.bonusDmg||0) + critBonusDmg, attacker, !!card.pierce);
       addLog(`${attacker.name} → ${card.name} deals ${dmg} dmg to ${target.name}${card.pierce?' ✦pierce':''}${isCrit?' <CRIT>':''}${clsMult>1?' ✦':''}`, isCrit?'crit':clsMult>1?'em':'');
       showFloatDmg(target, dmg, isCrit ? '#ffd700' : '#e87070');
+      // LIFESTEAL on a plain damage card (e.g. Soul Drain): heal % of damage dealt.
+      if (card.lifesteal && dmg > 0) {
+        const h = healSpirit(attacker, Math.round(dmg * card.lifesteal));
+        if (h > 0) addLog(`🩸 ${attacker.name} siphons ${h} HP`, 'em');
+      }
       // Passive: Vortexeel – crits stun
       if (isCrit && attacker.id === 'vortexeel' && !target.dead) {
         target.effects.push({type:'stun', turns:1, turnsLeft:1});
@@ -2682,33 +2840,33 @@ function resolveCard(attacker, card, target) {
       const healCtx = { healer: attacker, target, amount: Math.round(power), card };
       applyEmblemHook('modifyHealAmount', side, healCtx);
       const amt2 = Math.max(0, Math.round(healCtx.amount));
-      target.hp = Math.min(target.maxHp, target.hp + amt2);
-      addLog(`${attacker.name} → ${card.name}: heals ${target.name} for ${amt2} HP`, '');
+      const applied2 = healSpirit(target, amt2);   // respects HEAL BLOCK
+      addLog(`${attacker.name} → ${card.name}: heals ${target.name} for ${applied2} HP`, '');
       spawnParticles(target, '#a0e888', 8);
-      if (amt2 > 0) SoundManager.play('healing');
-      applyEmblemHook('onHeal', side, { healer: attacker, target, amount: amt2, card });
+      if (applied2 > 0) SoundManager.play('healing');
+      applyEmblemHook('onHeal', side, { healer: attacker, target, amount: applied2, card });
       break;
     }
     case 'heal': {
       const healCtx = { healer: attacker, target: attacker, amount: Math.round(power), card };
       applyEmblemHook('modifyHealAmount', side, healCtx);
       const amt = Math.max(0, Math.round(healCtx.amount));
-      attacker.hp = Math.min(attacker.maxHp, attacker.hp + amt);
-      addLog(`${attacker.name} → ${card.name}: heals ${amt} HP`, '');
+      const applied = healSpirit(attacker, amt);   // respects HEAL BLOCK
+      addLog(`${attacker.name} → ${card.name}: heals ${applied} HP`, '');
       spawnParticles(attacker, '#a0e888', 8);
-      if (amt > 0) SoundManager.play('healing');
-      applyEmblemHook('onHeal', side, { healer: attacker, target: attacker, amount: amt, card });
+      if (applied > 0) SoundManager.play('healing');
+      applyEmblemHook('onHeal', side, { healer: attacker, target: attacker, amount: applied, card });
       break;
     }
     case 'drain': {
       const dmg = applyDamage(target, Math.round(power), attacker);
-      const got = Math.round(dmg * (attacker.id==='shadowleech' ? 0.5 : 0.4));
-      attacker.hp = Math.min(attacker.maxHp, attacker.hp + got);
+      const rate = card.lifesteal != null ? card.lifesteal : (attacker.id==='shadowleech' ? 0.5 : 0.4);
+      const got = healSpirit(attacker, Math.round(dmg * rate));
       addLog(`${attacker.name} → ${card.name}: drains ${dmg} dmg, heals ${got}`, 'em');
       showFloatDmg(target, dmg, '#c87898');
       break;
     }
-    case 'buff': break; // handled below
+    case 'buff': break; // handled below + by card.apply
   }
 
   // Combo bonus (buff_atk is set as buff type card)
@@ -2758,6 +2916,10 @@ function resolveCard(attacker, card, target) {
     const ref = Math.round(Math.round(power) * 0.15);
     if (ref > 0) applyDamage(attacker, ref);
   }
+
+  // New mechanic cards: apply their status payload + any bespoke special behaviour.
+  applyCardStatuses(attacker, target, card);
+  applyCardSpecial(attacker, target, card);
 
   // Emblem onCardPlayed: fires after any card resolves (Cinder Rush consumption,
   // Pyre Ascension stacks, Riptide flag, Voltage Surge counter, Resonance heal-all, etc.)
@@ -3611,7 +3773,8 @@ function cardMechText(card) {
     drain:       `${card.power} DMG → heal ~${Math.round(card.power*0.4)} HP`,
     buff:        ``,
   };
-  let base = typeLabels[card.type] || card.desc;
+  let base = typeLabels[card.type];
+  if (base == null) base = card.desc || '';
   if (card.type === 'buff' && card.effect && card.effect.type === 'buff_atk') {
     base = `+${Math.round(card.effect.val*100)}% ATK for ${card.effect.turns}t`;
   }
@@ -3624,7 +3787,19 @@ function cardMechText(card) {
     };
     base += ' · ' + (eShort[card.effect.type] || '');
   }
-  return base;
+  // ── Phase 2 mechanic summaries ──
+  if (card.lifesteal) base += (base?' · ':'') + `🩸 Lifesteal ${Math.round(card.lifesteal*100)}%`;
+  if (card.special === 'cleanse')    base = base || 'Cleanse ALL debuffs from ally';
+  if (card.special === 'wallOfIron') base += (base?' · ':'') + '+30 Shield if Front';
+  if (card.special === 'rampage')    base += (base?' · ':'') + '+Vuln if Raging';
+  if (card.apply && card.apply.length) {
+    const aShort = { taunt:'🛑 Taunt', poison:'☠ Poison', bleed:'🩸 Bleed', vulnerable:'💔 Vuln',
+      weak:'🔻 Weak', silence:'🔇 Silence', stealth:'👻 Stealth', rage:'😡 Rage', regen:'💚 Regen',
+      heal_block:'🚫 HealBlock', echo:'🔁 Echo', volatile:'💣 Volatile' };
+    const parts = card.apply.map(a => `${aShort[a.k]||a.k}${a.n?(' '+a.n):''}${a.to==='self'?' (self)':''}`);
+    base += (base?' · ':'') + parts.join(', ');
+  }
+  return base || card.desc || '';
 }
 
 function showTooltip(e, card, owner) {
