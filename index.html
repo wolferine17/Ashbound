@@ -5,48 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ashbound</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cinzel+Decorative:wght@700;900&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- GSAP 3.12.2 (used only for purely-visual UI tweens + 3D scene intro). Guarded everywhere. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 <script src="data/spirit-imgs.js"></script>
 <script src="data/emblems.js"></script>
 <script src="data/sound-manager.js"></script>
-<!-- Three.js (UMD global build, pinned r128 — no build step, exposes window.THREE).
-     Used only for the animated 3D battlefield behind the s-battle screen. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-/* ── TOKENS (remapped to AAA dark-fantasy palette; all original names kept) ── */
+/* ── TOKENS ─────────────────────────────────────────────── */
 :root {
-  --bg:        #05020f;
-  --surface:   #0d0720;
-  --surface2:  #130a2e;
-  --border:    rgba(106,47,255,0.22);
-  --text:      #e8deff;
-  --muted:     #7c6aa8;
-  --faint:     #2a1650;
-  --gold:      #c9a84c;
-  --gold-bright: #f0d080;
-  --gold-glow: rgba(201,168,76,0.4);
-  --teal:      #00e5cc;
-  --teal-glow: rgba(0,229,204,0.32);
-  --danger:    #ff3355;
-  --danger-glow: rgba(255,51,85,0.32);
-  --success:   #00ffaa;
-  --purple:    #8b2fff;          /* brightened so existing var(--purple) text reads */
-  --violet:    #8b2fff;
-  --purple-glow: rgba(139,47,255,0.34);
-  --border-glow: #6a2fff;
-  --font-title: 'Cinzel Decorative', 'Cinzel', serif;  /* hero titles only */
-  --font-d: 'Cinzel', serif;     /* decorative labels (kept legible) */
-  --font-b: 'Rajdhani', 'Inter', sans-serif;
+  --bg:        #0c0a14;
+  --surface:   #13101f;
+  --surface2:  #1a1628;
+  --border:    rgba(255,255,255,0.10);
+  --text:      #e8e4f0;
+  --muted:     #7a7490;
+  --faint:     #3d3858;
+  --gold:      #e8c56a;
+  --gold-glow: rgba(232,197,106,0.35);
+  --teal:      #3de8c5;
+  --teal-glow: rgba(61,232,197,0.30);
+  --danger:    #e85050;
+  --danger-glow: rgba(232,80,80,0.30);
+  --purple:    #2f0453;
+  --purple-glow: rgba(155,111,232,0.30);
+  --font-d: 'Cinzel', serif;
+  --font-b: 'Inter', sans-serif;
   --r:    8px;
-  --r-lg: 16px;
+  --r-lg: 14px;
   --ease: cubic-bezier(0.16,1,0.3,1);
-  /* reusable glassmorphism surface */
-  --glass-bg: linear-gradient(135deg, rgba(13,7,32,0.85), rgba(20,10,50,0.7));
-  --glass-shadow: 0 8px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(106,47,255,0.08);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width:100%; height:100%; background:var(--bg); color:var(--text); font-family:var(--font-b); font-size:15px; overflow:hidden; }
@@ -82,24 +68,10 @@ button:active { transform:scale(0.97); }
 .draft-header h2 { font-family:var(--font-d); font-size:22px; color:var(--gold); letter-spacing:3px; }
 .draft-header p { color:var(--muted); font-size:13px; margin-top:4px; }
 .draft-team-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:10px 0; }
-.draft-slot { position:relative; width:72px; height:90px; border:2px dashed var(--faint); border-radius:var(--r); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--faint); transition:all 0.2s; }
-.draft-slot.filled { border-style:solid; background:rgba(232,197,106,0.06); }
+.draft-slot { width:72px; height:90px; border:2px dashed var(--faint); border-radius:var(--r); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--faint); transition:all 0.2s; }
+.draft-slot.filled { border-style:solid; border-color:var(--gold); background:rgba(232,197,106,0.06); }
 .draft-slot .slot-emoji { font-size:26px; }
 .draft-slot .slot-name { font-size:10px; color:var(--gold); text-align:center; line-height:1.2; }
-/* Front vs back slot theming so the player sees their wall while drafting. */
-.draft-slot.slot-front { border-color:rgba(232,197,106,0.55); background:rgba(232,197,106,0.05); }
-.draft-slot.slot-front.filled { border-color:var(--gold); box-shadow:0 0 12px var(--gold-glow); }
-.draft-slot.slot-back  { border-color:rgba(90,150,232,0.45); background:rgba(90,150,232,0.05); }
-.draft-slot.slot-back.filled { border-color:#5a96e8; box-shadow:0 0 12px rgba(90,150,232,0.35); }
-.slot-pos-tag { position:absolute; top:-9px; left:50%; transform:translateX(-50%); font-family:var(--font-d); font-size:7px; letter-spacing:2px; padding:1px 6px; border-radius:50px; white-space:nowrap; }
-.slot-front .slot-pos-tag { color:#1a1206; background:linear-gradient(135deg,var(--gold-bright),var(--gold)); }
-.slot-back  .slot-pos-tag { color:#dfeaff; background:linear-gradient(135deg,#5a96e8,#2f5fa8); }
-/* Group labels (FRONTLINE / BACKLINE) that sit between the slot groups. */
-.draft-group-label { align-self:center; display:flex; flex-direction:column; justify-content:center; text-align:center; padding:0 4px; min-width:64px; }
-.dgl-title { font-family:var(--font-d); font-size:11px; letter-spacing:1px; line-height:1.2; }
-.dgl-sub { font-size:8px; color:var(--muted); margin-top:2px; line-height:1.2; max-width:74px; }
-.dgl-front .dgl-title { color:var(--gold); }
-.dgl-back  .dgl-title { color:#7fb0ff; }
 .draft-roster-title { font-family:var(--font-d); font-size:13px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; padding:12px 0 8px; }
 .draft-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; width:100%; max-width:820px; }
 .roster-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:12px; cursor:pointer; transition:all 0.2s var(--ease); position:relative; overflow:hidden; }
@@ -653,252 +625,9 @@ img.col-portrait { max-width:120px; max-height:120px; }
 .mp-opponent.empty { opacity:0.55; }
 .mp-vs { font-family:var(--font-d); font-size:14px; letter-spacing:3px; color:var(--muted); }
 
-/* ── 3D BATTLEFIELD CANVAS (behind s-battle only) ─────────── */
-#bg3d {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;            /* behind every screen/UI element */
-  display: none;         /* shown only while the battle screen is active */
-  pointer-events: none;  /* never intercept clicks */
-}
-/* While the 3D scene is active, let it show through the battle screen. */
-body.battle-3d-active #s-battle { background: transparent; z-index: 1; }
-/* Repurpose the battle screen's ::before into an edge vignette so UI text
-   stays readable over the bright animated scene (center stays clear). */
-body.battle-3d-active #s-battle::before {
-  background: radial-gradient(ellipse 92% 84% at 50% 50%, transparent 42%, rgba(8,5,16,0.58) 100%);
-}
-/* Small legibility boost for the thin uppercase labels over the 3D scene. */
-body.battle-3d-active .battle-label,
-body.battle-3d-active .turn-label,
-body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
-/* On phones the scene still runs but in a reduced form (handled in JS:
-   fewer particles/stars, 1 cloud layer, no aurora, lower pixel ratio).
-   No CSS force-hide here so the JS can show it. */
-
-/* ════════════════════════════════════════════════════════════════════
-   AAA VISUAL OVERHAUL — appended last so it layers over existing rules.
-   Reuses every existing selector/ID/class; renames nothing.
-   ════════════════════════════════════════════════════════════════════ */
-
-/* ── Global keyframes ─────────────────────────────────────── */
-@keyframes pulseGlow   { 0%,100%{ filter:drop-shadow(0 0 8px var(--gold-glow)); } 50%{ filter:drop-shadow(0 0 22px var(--gold-bright)); } }
-@keyframes floatY      { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-10px); } }
-@keyframes fadeSlideUp { from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:translateY(0); } }
-@keyframes shimmerGold { 0%{ background-position:-200% 0; } 100%{ background-position:200% 0; } }
-@keyframes runeRotate  { to{ transform:rotate(360deg); } }
-@keyframes borderSpin  { to{ transform:rotate(360deg); } }
-@keyframes flicker     { 0%,100%{ opacity:1; } 45%{ opacity:0.78; } 50%{ opacity:1; } 55%{ opacity:0.85; } }
-@keyframes rippleOut   { to{ transform:scale(4); opacity:0; } }
-@keyframes particleDrift { 0%{ transform:translateY(0) translateX(0); opacity:0; } 10%{ opacity:0.8; } 100%{ transform:translateY(-120px) translateX(var(--drx,10px)); opacity:0; } }
-@keyframes energyPulse { 0%,100%{ box-shadow:0 0 8px var(--teal-glow); } 50%{ box-shadow:0 0 18px var(--teal); } }
-@keyframes bgPulse     { 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.18); } }
-@keyframes confettiFall { to{ transform:translate(var(--cx,0), var(--cy,140px)) rotate(var(--cr,540deg)); opacity:0; } }
-
-/* ── Glassmorphism applied to existing panels ─────────────── */
-/* NOTE: .deck-counter / .battle-log intentionally excluded — they sit over the
-   animated 3D canvas, where backdrop-filter blur is very expensive. They use a
-   solid semi-transparent background instead (visually ~identical). */
-.auth-card, .home-tile, .col-card, .char-card, .mp-panel, .modal,
-.roster-card, .home-stat, .lb-table, .profile-card,
-.shop-card, .emblem-card, .case-card {
-  background: var(--glass-bg) !important;
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border: 1px solid rgba(106,47,255,0.25);
-  box-shadow: var(--glass-shadow);
-}
-/* GPU compositing hint for the elements that actually animate on hover. */
-.card, .home-tile, .title-btn, .btn-end, .result-btn, .auth-btn { will-change: transform; }
-/* Deck counter over the 3D scene: solid translucent fill, no blur. */
-.deck-counter { background: rgba(20,10,46,0.7) !important; border:1px solid rgba(106,47,255,0.3); }
-.auth-card, .mp-panel, .modal { border-radius: 18px; }
-
-/* ── Animated conic border glow for hero panels & hovered tiles ── */
-.auth-card, .mp-panel {
-  position: relative; isolation: isolate;
-}
-.auth-card::after, .mp-panel::after {
-  content:''; position:absolute; inset:-2px; border-radius:inherit; z-index:-1;
-  background: conic-gradient(from 0deg, var(--violet), var(--teal), var(--violet), var(--teal), var(--violet));
-  filter: blur(10px); opacity:0.45; animation: borderSpin 7s linear infinite;
-}
-.home-tile { isolation:isolate; }
-.home-tile::after {
-  content:''; position:absolute; inset:-2px; border-radius:inherit; z-index:-1;
-  background: conic-gradient(from 0deg, var(--violet), var(--teal), var(--violet));
-  filter: blur(9px); opacity:0; transition:opacity 0.35s; animation: borderSpin 6s linear infinite;
-}
-.home-tile:hover::after { opacity:0.7; }
-
-/* ── Title screen ─────────────────────────────────────────── */
-#s-title { background: radial-gradient(ellipse 90% 70% at 50% 40%, #1a0a44 0%, var(--bg) 72%); animation: bgPulse 9s ease-in-out infinite; }
-.title-logo, .brand-logo.size-title { filter: drop-shadow(0 0 30px var(--violet)); animation: pulseGlow 4s ease-in-out infinite; }
-.title-sub { color: var(--teal); letter-spacing: 8px; }
-.title-btn, .intro-begin-prompt {
-  background: linear-gradient(135deg, #6a2fff, #3d00cc);
-  border: 1px solid rgba(106,47,255,0.6);
-  box-shadow: 0 0 26px var(--purple-glow), inset 0 1px 0 rgba(255,255,255,0.12);
-}
-/* floating ambient particles container (filled by JS on title) */
-.title-particles { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
-.title-particles i { position:absolute; bottom:-10px; width:4px; height:4px; border-radius:50%;
-  background: radial-gradient(circle, var(--teal), transparent 70%); opacity:0; animation: particleDrift linear infinite; }
-
-/* ── Auth ─────────────────────────────────────────────────── */
-.auth-card { padding: 30px 28px; }
-.auth-sub { color: var(--teal); letter-spacing: 4px; }
-.auth-row input {
-  background: rgba(5,2,15,0.6); border:1px solid var(--border); color: var(--text);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.auth-row input:focus { outline:none; border-color: var(--teal); box-shadow: 0 0 0 2px rgba(0,229,204,0.18), 0 0 16px var(--teal-glow); }
-.auth-tabs { position:relative; }
-.auth-tab.active { color: var(--teal); }
-
-/* ── Buttons: unified AAA system (keeps existing class names) ── */
-.title-btn, .btn-end, .result-btn, .auth-btn, .draft-confirm,
-.filter-btn, .btn-back, .btn-forfeit, .btn-cancel, .case-buy, .shop-buy {
-  position: relative; overflow: hidden;
-  font-family: var(--font-b); text-transform: uppercase; font-weight: 700; letter-spacing: 2px;
-  transition: transform 0.18s var(--ease), box-shadow 0.25s var(--ease), border-color 0.2s, background 0.2s;
-}
-.title-btn:hover, .btn-end:hover:not(:disabled), .result-btn:hover, .auth-btn:hover:not(:disabled), .draft-confirm:hover:not(:disabled) {
-  transform: translateY(-3px) scale(1.03);
-}
-.auth-btn { background: linear-gradient(135deg, #6a2fff, #3d00cc); border:1px solid rgba(106,47,255,0.55); box-shadow:0 0 22px var(--purple-glow); }
-.draft-confirm { background: linear-gradient(135deg, var(--gold-bright), #8a6a1a); color:#1a1206; box-shadow:0 0 24px var(--gold-glow); }
-/* click ripple element injected by JS */
-.btn-ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,0.35); transform:scale(0); animation: rippleOut 0.6s ease-out forwards; pointer-events:none; width:120px; height:120px; margin:-60px 0 0 -60px; }
-
-/* ── Home / rank badge tiers ──────────────────────────────── */
-#s-home { background: radial-gradient(ellipse 90% 70% at 50% 25%, #18093c 0%, var(--bg) 70%); }
-.home-brand { background: linear-gradient(135deg, var(--gold-bright), #fff0c0, var(--gold)); -webkit-background-clip:text; background-clip:text; filter: drop-shadow(0 0 14px var(--gold-glow)); }
-.home-tile-ic { filter: drop-shadow(0 0 10px var(--purple-glow)); transition: transform 0.3s var(--ease); }
-.home-tile:hover .home-tile-ic { transform: scale(1.15) translateY(-2px); }
-.rank-tier-bronze    { color:#cd7f32 !important; filter:drop-shadow(0 0 8px rgba(205,127,50,0.6)); }
-.rank-tier-silver    { color:#c0c0c0 !important; filter:drop-shadow(0 0 8px rgba(192,192,192,0.6)); }
-.rank-tier-gold      { color:#ffd700 !important; filter:drop-shadow(0 0 10px rgba(255,215,0,0.7)); }
-.rank-tier-platinum  { color:#e5e4e2 !important; filter:drop-shadow(0 0 10px rgba(229,228,226,0.7)); }
-.rank-tier-diamond   { color:#b9f2ff !important; filter:drop-shadow(0 0 12px rgba(185,242,255,0.8)); animation:pulseGlow 3s ease-in-out infinite; }
-.rank-tier-ascendant { color:#c084fc !important; filter:drop-shadow(0 0 12px rgba(192,132,252,0.8)); }
-.rank-tier-ethereal  { background:linear-gradient(90deg,#ff6ec7,#00e5cc,#8b2fff,#ff6ec7); background-size:300% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmerGold 4s linear infinite; }
-
-/* ── Battle: portraits, HP, energy gems, cards ────────────── */
-.combatant .spirit-portrait, .combatant .c-emoji {
-  border-radius: 14px;
-  box-shadow: 0 0 0 2px rgba(106,47,255,0.5), 0 0 18px rgba(106,47,255,0.35), inset 0 0 12px rgba(0,0,0,0.5);
-  transition: box-shadow 0.4s var(--ease), filter 0.3s;
-}
-.combatant.clickable:hover .spirit-portrait { box-shadow: 0 0 0 2px var(--teal), 0 0 26px var(--teal-glow); }
-.combatant.dead { opacity:0.4 !important; }
-.combatant.dead .spirit-portrait, .combatant.dead .c-emoji { filter: grayscale(1) brightness(0.6); }
-.combatant.dead::after {
-  content:''; position:absolute; top:0; left:0; right:0; height:78px;
-  background: linear-gradient(135deg, transparent 44%, var(--danger) 47%, var(--danger) 53%, transparent 56%);
-  opacity:0.8; pointer-events:none; border-radius:14px;
-}
-.c-hp-bar { height:9px; border-radius:5px; background:rgba(5,2,15,0.7); box-shadow: inset 0 0 4px rgba(0,0,0,0.8); border:1px solid rgba(106,47,255,0.25); }
-.c-hp-fill { box-shadow: 0 0 10px currentColor; }
-.c-name { font-family: var(--font-d); }
-.battle-label, .turn-label { font-family: var(--font-d); }
-.turn-label { font-size:14px; padding:4px 16px; border-radius:50px; }
-/* energy "gems" — rotated gradient squares */
-.energy-orb { width:16px; height:16px; border-radius:4px; transform: rotate(45deg); background: linear-gradient(135deg, #1a1238, #0d0720); border:1px solid var(--faint); }
-.energy-orb.active { background: linear-gradient(135deg, #a0ffe8, var(--teal)); border-color: var(--teal); animation: energyPulse 2s ease-in-out infinite; }
-.energy-orb.regen  { background: linear-gradient(135deg, #c8e0ff, var(--violet)); border-color: var(--violet); box-shadow:0 0 10px var(--purple-glow); }
-/* hand 3D lift */
-.hand-area { perspective: 900px; }
-.card {
-  background: var(--glass-bg); border:1px solid rgba(106,47,255,0.3);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
-  transform-style: preserve-3d;
-}
-.card:hover:not(.card-disabled) { transform: translateY(-16px) scale(1.1) rotateX(6deg); box-shadow: 0 18px 40px rgba(0,0,0,0.7), 0 0 22px var(--purple-glow); z-index:20; }
-.card.card-selected { border-color: var(--gold); box-shadow: 0 0 20px var(--gold-glow); animation: floatY 2.4s ease-in-out infinite; }
-.card-cost { background: radial-gradient(circle at 38% 32%, var(--violet), #2d0a66); color:#fff; box-shadow:0 0 8px var(--purple-glow); border:1px solid rgba(255,255,255,0.2); }
-.card-name { font-family: var(--font-d); color: var(--gold-bright); }
-/* battle log entries slide in */
-.battle-log { background: linear-gradient(135deg, rgba(8,4,20,0.82), rgba(16,8,40,0.72)); border:1px solid rgba(106,47,255,0.25); }
-.battle-log p { animation: fadeSlideUp 0.3s var(--ease); }
-
-/* ── Result screen ────────────────────────────────────────── */
-#s-result { background: radial-gradient(ellipse 90% 70% at 50% 40%, #18093c 0%, var(--bg) 72%); }
-.result-title { font-family: var(--font-title); font-size: clamp(3rem, 8vw, 5.5rem); }
-.result-title.win {
-  background: linear-gradient(90deg, var(--gold), #fff0c0, var(--gold-bright), #fff0c0, var(--gold));
-  background-size: 300% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
-  filter: drop-shadow(0 0 26px var(--gold-glow)); animation: shimmerGold 3s linear infinite;
-}
-.result-title.lose { color: var(--danger); filter: drop-shadow(0 0 24px var(--danger-glow)); }
-#result-defeat-vignette { position:fixed; inset:0; pointer-events:none; z-index:1; opacity:0;
-  background: radial-gradient(ellipse at center, transparent 40%, rgba(140,0,20,0.5) 100%); transition:opacity 0.8s; }
-.confetti-piece { position:fixed; width:9px; height:14px; top:40%; left:50%; z-index:550; pointer-events:none; border-radius:2px; animation: confettiFall 1.6s ease-in forwards; }
-
-/* ── Leaderboard ──────────────────────────────────────────── */
-.lb-row { transition: background 0.2s, box-shadow 0.2s; position:relative; }
-.lb-row.head { background: linear-gradient(90deg, rgba(106,47,255,0.18), transparent); font-family:var(--font-d); letter-spacing:2px; color:var(--teal); }
-.lb-row:not(.head):hover { background: rgba(106,47,255,0.12); box-shadow: inset 3px 0 0 var(--violet); }
-.lb-row.me { box-shadow: inset 0 0 0 1px var(--teal), 0 0 16px var(--teal-glow); border-radius:8px; }
-
-/* ── Multiplayer lobby ────────────────────────────────────── */
-.mp-code-box, .mp-room-code, #mp-room-code, .mp-code {
-  font-family: var(--font-title); letter-spacing: 10px; color: var(--teal);
-  text-shadow: 0 0 18px var(--teal-glow); animation: flicker 4s ease-in-out infinite;
-}
-.mp-panel-title { font-family: var(--font-d); color: var(--gold-bright); letter-spacing:2px; }
-
-/* ── Screen entrance: add a gentle rise to the opacity fade ── */
-.screen { transition: opacity 0.4s var(--ease), transform 0.4s var(--ease); }
-.screen.hidden { transform: translateY(12px); }
-
-/* ── Tooltip & toast polished glass ───────────────────────── */
-#tooltip, .toast { background: var(--glass-bg); backdrop-filter: blur(16px) saturate(180%); border:1px solid rgba(106,47,255,0.35); }
-
-/* ════════════════════════════════════════════════════════════════════
-   FRONTLINE / BACKLINE POSITIONING + STATUS EFFECTS
-   ════════════════════════════════════════════════════════════════════ */
-/* Vertical divider between the 2 frontliners and 3 backliners. */
-.pos-divider { position:relative; width:2px; align-self:stretch; margin:0 8px; border-radius:2px;
-  background:linear-gradient(180deg, transparent, rgba(232,197,106,0.35), rgba(106,47,255,0.35), transparent); }
-.pos-divider::before { content:'FRONT'; position:absolute; top:-14px; right:6px; font-family:var(--font-d); font-size:8px; letter-spacing:2px; color:var(--gold); opacity:0.7; white-space:nowrap; }
-.pos-divider::after  { content:'BACK';  position:absolute; top:-14px; left:6px;  font-family:var(--font-d); font-size:8px; letter-spacing:2px; color:var(--muted); opacity:0.7; white-space:nowrap; }
-/* Front = warmer/brighter frame; Back = cooler/dimmer + shield corner. */
-.combatant.pos-front .spirit-portrait, .combatant.pos-front .c-emoji { box-shadow:0 0 0 2px rgba(232,197,106,0.55), 0 0 14px rgba(232,197,106,0.3); }
-.combatant.pos-back  .spirit-portrait, .combatant.pos-back  .c-emoji { box-shadow:0 0 0 2px rgba(90,150,232,0.45), 0 0 10px rgba(60,90,160,0.25); filter:brightness(0.92); }
-.c-portrait-wrap { position:relative; display:inline-flex; }
-.pos-shield-ic { position:absolute; bottom:-4px; right:-4px; font-size:13px; filter:drop-shadow(0 1px 2px #000); opacity:0.85; }
-/* Targeting selection states. */
-.combatant.targetable { cursor:pointer; }
-.combatant.targetable .spirit-portrait, .combatant.targetable .c-emoji { animation:targetPulse 1s ease-in-out infinite; }
-@keyframes targetPulse { 0%,100% { box-shadow:0 0 0 2px var(--gold), 0 0 10px var(--gold-glow); } 50% { box-shadow:0 0 0 3px var(--gold-bright), 0 0 22px var(--gold-bright); } }
-.combatant.pierce-target .spirit-portrait, .combatant.pierce-target .c-emoji { animation:pierceTargetPulse 0.9s ease-in-out infinite; }
-@keyframes pierceTargetPulse { 0%,100% { box-shadow:0 0 0 2px var(--danger), 0 0 12px var(--danger-glow); } 50% { box-shadow:0 0 0 3px #ff6688, 0 0 24px #ff3355; } }
-.combatant.untargetable { opacity:0.4; pointer-events:none; }
-.combatant.untargetable .c-portrait-wrap::after { content:'🔒'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; filter:drop-shadow(0 1px 3px #000); }
-/* Taunt: red glowing ring. Stealth: ghostly shimmer. */
-.combatant.taunted .spirit-portrait, .combatant.taunted .c-emoji { box-shadow:0 0 0 3px #ff3355, 0 0 18px rgba(255,51,85,0.7) !important; }
-.combatant.stealthed { opacity:0.72; }
-.combatant.stealthed .spirit-portrait, .combatant.stealthed .c-emoji { filter:grayscale(0.3) brightness(1.15); animation:stealthShimmer 1.6s ease-in-out infinite; }
-@keyframes stealthShimmer { 0%,100% { opacity:0.55; } 50% { opacity:0.95; } }
-/* Status badges. */
-.c-se-badges { display:flex; flex-wrap:wrap; gap:2px; justify-content:center; max-width:124px; margin-bottom:2px; }
-.se-badge { font-size:9px; line-height:1; padding:1px 3px; border-radius:5px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.12); font-family:var(--font-b); font-weight:600; }
-.se-poison { color:#9bf08a; } .se-bleed { color:#ff6e6e; } .se-vulnerable { color:#ff9bd0; }
-.se-weak { color:#b0b0c0; } .se-silence { color:#c0a0ff; } .se-stealth { color:#cfe0ff; }
-.se-rage { color:#ffae5a; } .se-regen { color:#7affb0; } .se-heal_block { color:#ff5a5a; }
-.se-echo { color:#7ad0ff; } .se-taunt { color:#ff5a7a; } .se-volatile { color:#ffcf5a; }
-.se-fury { color:#fff; background:linear-gradient(135deg,#ff6a00,#ff2a00); border:none; letter-spacing:1px; }
-
 </style>
 </head>
 <body>
-
-<!-- 3D battlefield canvas — only visible behind the s-battle screen.
-     Fixed, lowest z-index, no pointer events. Driven by the module at end of body. -->
-<canvas id="bg3d"></canvas>
 
 <!-- INTRO OVERLAY (full-screen, removed after sequence) -->
 <div class="intro-overlay" id="intro-overlay">
@@ -1269,25 +998,8 @@ const CLASSES = {
 
 // Card types: damage, shield, ally_shield, heal, ally_heal, drain (lifesteal), aoe, buff
 // Effects: burn(dmg/turn), stun(skip), weaken(-atk), slow(-spd)
-// Derive a card's TARGETING type from its existing shape (type/cost/pierce),
-// following the Frontline/Backline guidelines. Explicit card.targeting always wins.
-// Hoisted (function declaration) so it's available when SPIRITS is built below.
-function deriveTargeting(card) {
-  if (card.targeting) return card.targeting;       // explicit override
-  var t = card.type;
-  if (t === 'shield' || t === 'heal' || t === 'buff') return 'self';
-  if (t === 'ally_shield' || t === 'ally_heal')       return 'ally';
-  if (t === 'aoe')   return 'all';
-  if (t === 'drain') return 'random_any';            // chaotic life-steal
-  if (card.pierce)   return 'pierce';                 // shield/position bypass
-  if (t === 'damage') return (card.cost <= 1) ? 'random_front' : 'select_front';
-  return 'select_front';
-}
-
 function mkCard(name, emoji, cost, type, power, desc, effect=null) {
-  const c = { name, emoji, cost, type, power, desc, effect };
-  c.targeting = deriveTargeting(c);
-  return c;
+  return { name, emoji, cost, type, power, desc, effect };
 }
 
 
@@ -1306,7 +1018,7 @@ const SPIRITS = [
     parts:[
       mkCard('Fang Strike','🐺',1,'damage',90,'Fierce bite.'),
       mkCard('Molten Howl','🌊',2,'aoe',   60,'Howl scorches row.'),
-      mkCard('Ember Guard','🛡',1,'shield',70,'Ashen barrier.'),
+      mkCard('Ember Guard','🛡',1, 'ally_shield',70,'Ashen barrier.'),
       mkCard('Firestep',   '💨',2,'damage',115,'Charge through flames.'),
     ]},
   { id:'scorchdrake', name:'Kaelthar', img:1, emoji:'🐉', cls:'flame', hp:560, atk:100, spd:70,
@@ -1333,7 +1045,7 @@ const SPIRITS = [
       mkCard('Tide Strike','💧',1,'damage',88,'Crushing wave blow.',{type:'slow',val:0.8,turns:2}),
       mkCard('Whirlpool',  '🌀',2,'aoe',   65,'Pull all into a vortex.'),
       mkCard('Frost Coil', '❄',2,'damage',110,'Freezing serpent coil.'),
-      mkCard('Mist Veil',  '🛡',1,'shield',75,'Shroud in ocean mist.'),
+      mkCard('Mist Veil',  '🛡',1, 'ally_shield',75,'Shroud in ocean mist.'),
     ]},
   { id:'coralsprite', name:'Isavel', img:1, emoji:'🧜', cls:'water', hp:460, atk:80, spd:95,
     passive:'Heal ally +15/turn',
@@ -1357,7 +1069,7 @@ const SPIRITS = [
       mkCard('Mist Strike','👻',1,'damage',85,'Strike from fog.'),
       mkCard('Drain Tide', '💧',2,'drain', 90,'Drain life with water.'),
       mkCard('Ghost Wave', '🌊',2,'aoe',   70,'Phantom tide blast.'),
-      mkCard('Fog Form',   '🛡',1,'shield',65,'Become mist.'),
+      mkCard('Fog Form',   '🛡',1, 'ally_shield',65,'Become mist.'),
     ]},
 
   // ── EARTH ──────────────────────────────────────────────
@@ -1401,14 +1113,14 @@ const SPIRITS = [
       mkCard('Lightning Talon','⚡',1,'damage',98,'Strike from above.'),
       mkCard('Thunder Dive',   '🌩',2,'damage',125,'Dive at lightning speed.'),
       mkCard('Gale Wing',      '💨',2,'aoe',   70,'Wing gust hits all.'),
-      mkCard('Stormveil',      '🛡',1,'shield',65,'Wrap in storm clouds.'),
+      mkCard('Stormveil',      '🛡',1, 'ally_shield',65,'Wrap in storm clouds.'),
     ]},
   { id:'sparkfox', name:'Caelith', img:1, emoji:'🦊', cls:'storm', hp:470, atk:93, spd:105,
     passive:'Crit+12%',
     parts:[
       mkCard('Spark Bite', '⚡',1,'damage',93,'Electrifying bite.'),
       mkCard('Chain Bolt', '🌩',2,'damage',115,'Bolt chains to nearby foe.'),
-      mkCard('Static Veil','🛡',1,'shield',70,'Electric barrier.'),
+      mkCard('Static Veil','🛡',1, 'ally_shield',70,'Electric barrier.'),
       mkCard('Overload',   '💥',3,'aoe',   95,'Discharge all energy.'),
     ]},
   { id:'cycloneape', name:'Tharion', img:1, emoji:'✦', cls:'storm', hp:510, atk:90, spd:85,
@@ -1425,7 +1137,7 @@ const SPIRITS = [
       mkCard('Wing Slash',  '🦋',1,'damage',102,'Fast wing blade.'),
       mkCard('Cyclone',     '🌀',3,'aoe',   90,'Summon a cyclone.'),
       mkCard('Air Heal',    '💨',2,'ally_heal',  80,'Ride wind currents.'),
-      mkCard('Zephyr Guard','🛡',1,'shield',60,'Wind deflection.'),
+      mkCard('Zephyr Guard','🛡',1, 'ally_shield',60,'Wind deflection.'),
     ]},
 
   // ── VOID ──────────────────────────────────────────────
@@ -1435,7 +1147,7 @@ const SPIRITS = [
       mkCard('Dark Drain', '🦇',2,'drain', 100,'Drain life force.'),
       mkCard('Void Claw',  '🌑',1,'damage',85,'Claw from the dark.'),
       mkCard('Shadow Mist','💜',2,'aoe',   65,'Void mist smothers all.',{type:'weaken',val:0.8,turns:2}),
-      mkCard('Night Veil', '🛡',1,'shield',70,'Cloak in darkness.'),
+      mkCard('Night Veil', '🛡',1, 'ally_shield',70,'Cloak in darkness.'),
     ]},
   { id:'corrupted', name:'Nyxavel', img:1, emoji:'👾', cls:'void', hp:510, atk:90, spd:88,
     passive:'Weaken on hit',
@@ -1443,7 +1155,7 @@ const SPIRITS = [
       mkCard('Corrupt Touch','👾',1,'damage',88,'Corrupting strike.',{type:'weaken',val:0.85,turns:2}),
       mkCard('Void Pulse',   '💥',2,'aoe',   70,'Dark energy pulse.'),
       mkCard('Siphon Soul',  '🌑',2,'drain', 105,'Steal enemy\'s essence.'),
-      mkCard('Dark Shield',  '🛡',2,'shield',90,'Void barrier.'),
+      mkCard('Dark Shield',  '🛡',2, 'ally_shield',90,'Void barrier.'),
     ]},
   { id:'nightstalker', name:'Shadevorn', img:1, emoji:'🐈', cls:'void', hp:460, atk:95, spd:108,
     passive:'Invisible until attacking',
@@ -1469,7 +1181,7 @@ const SPIRITS = [
       mkCard('Petal Blast', '🧚',1,'damage',75,'Razor petal strike.'),
       mkCard('Bloom Heal',  '🌸',2,'ally_heal',  120,'Restore with blossom.'),
       mkCard('Pollen Cloud','🌺',2,'aoe',   60,'Toxic pollen erupts.'),
-      mkCard('Leaf Shield', '🛡',1,'shield',85,'Woven leaf barrier.'),
+      mkCard('Leaf Shield', '🛡',1, 'ally_shield',85,'Woven leaf barrier.'),
     ]},
   { id:'willowsage', name:'Eldanis', img:1, emoji:'🌿', cls:'nature', hp:500, atk:78, spd:88,
     passive:'Buff ally +10 ATK',
@@ -1493,7 +1205,7 @@ const SPIRITS = [
       mkCard('Spore Puff',  '🍄',1,'damage',80,'Toxic spore burst.',{type:'burn',val:10,turns:2}),
       mkCard('Mycelium Net','🕸',2,'damage',100,'Fungal web snare.',{type:'stun',turns:1}),
       mkCard('Spore Heal',  '💚',2,'heal',  95,'Regenerating spores.'),
-      mkCard('Fungal Plate','🛡',1,'shield',90,'Dense mycelium armor.'),
+      mkCard('Fungal Plate','🛡',1, 'ally_shield',90,'Dense mycelium armor.'),
     ]},
 
   // ── FLAME (new) ────────────────────────────────────────
@@ -1502,7 +1214,7 @@ const SPIRITS = [
     parts:[
       mkCard('Lava Claw',    '🦀',1,'damage',88,'Searing pincer snap.'),
       mkCard('Magma Surge',  '🌋',2,'aoe',   72,'Erupt molten rock on all.',{type:'burn',val:10,turns:2}),
-      mkCard('Shell Smelt',  '🛡',1,'shield',100,'Forge molten shell.'),
+      mkCard('Shell Smelt',  '🛡',1, 'ally_shield',100,'Forge molten shell.'),
       mkCard('Boiling Tide', '💧',3,'damage',145,'Superheated wave crash.'),
     ]},
   { id:'embertoad', name:'Voryn', img:1, emoji:'✦', cls:'flame', hp:500, atk:82, spd:75,
@@ -1510,7 +1222,7 @@ const SPIRITS = [
     parts:[
       mkCard('Char Tongue',  '🔥',1,'damage',82,'Flaming tongue lash.',{type:'burn',val:8,turns:3}),
       mkCard('Toxic Ember',  '☠',2,'damage',105,'Venomous fire spit.',{type:'burn',val:14,turns:3}),
-      mkCard('Mudshield',    '🛡',1,'shield',80,'Fireproof mud coat.'),
+      mkCard('Mudshield',    '🛡',1, 'ally_shield',80,'Fireproof mud coat.'),
       mkCard('Inferno Leap', '💥',2,'aoe',   68,'Explosive leap on all.'),
     ]},
   { id:'solarkite', name:'Solenne', img:1, emoji:'🪁', cls:'flame', hp:445, atk:105, spd:108,
@@ -1526,7 +1238,7 @@ const SPIRITS = [
     parts:[
       mkCard('Specter Flame','👺',1,'damage',97,'Ghost fire strike.',{type:'burn',val:18,turns:1}),
       mkCard('Haunted Pyre', '🔥',2,'damage',118,'Inescapable flame.',{type:'burn',val:10,turns:2}),
-      mkCard('Ash Shroud',   '🛡',1,'shield',70,'Cinder ghost cloak.'),
+      mkCard('Ash Shroud',   '🛡',1, 'ally_shield',70,'Cinder ghost cloak.'),
       mkCard('Soul Scorch',  '💥',3,'aoe',   85,'Melt enemy souls with fire.'),
     ]},
 
@@ -1553,7 +1265,7 @@ const SPIRITS = [
       mkCard('Ink Burst',    '🦑',1,'damage',93,'Blinding ink spray.',{type:'slow',val:0.75,turns:1}),
       mkCard('Dark Current', '🌊',2,'aoe',   70,'Ink flood hits all.',{type:'slow',val:0.8,turns:1}),
       mkCard('Phantom Tide', '💜',2,'drain', 95,'Drain through inky depths.'),
-      mkCard('Veil of Deep', '🛡',1,'shield',80,'Ink cloak deflects blows.'),
+      mkCard('Veil of Deep', '🛡',1, 'ally_shield',80,'Ink cloak deflects blows.'),
     ]},
   { id:'rimesiren', name:'Sylvari', img:1, emoji:'✦', cls:'water', hp:455, atk:86, spd:97,
     passive:'Heal self 12 HP whenever you apply Slow',
@@ -1561,7 +1273,7 @@ const SPIRITS = [
       mkCard('Frost Song',   '🎵',1,'damage',86,'Freezing melody wave.',{type:'slow',val:0.75,turns:2}),
       mkCard('Glacial Voice','❄',2,'aoe',   68,'Siren song chills all.',{type:'slow',val:0.85,turns:2}),
       mkCard('Ice Ballad',   '💚',2,'ally_heal',100,'Soothing frost heals ally.'),
-      mkCard('Crystal Skin', '🛡',1,'shield',90,'Crystallised ice armour.'),
+      mkCard('Crystal Skin', '🛡',1, 'ally_shield',90,'Crystallised ice armour.'),
     ]},
 
   // ── EARTH (new) ────────────────────────────────────────
@@ -1613,7 +1325,7 @@ const SPIRITS = [
       mkCard('Static Dust',  '✨',1,'damage',100,'Charged wing scales.'),
       mkCard('Thunder Scale','🌩',2,'aoe',   80,'Scales erupt everywhere.'),
       mkCard('Gust Heal',    '💨',2,'ally_heal',90,'Revitalise ally with wind.'),
-      mkCard('Shimmer Veil', '🛡',1,'shield',65,'Glimmering wing shield.'),
+      mkCard('Shimmer Veil', '🛡',1, 'ally_shield',65,'Glimmering wing shield.'),
     ]},
   { id:'stormhound', name:'Ragnareth', img:1, emoji:'🐕', cls:'storm', hp:500, atk:92, spd:96,
     passive:'Howl: all allies gain +8 ATK at turn start',
@@ -1639,7 +1351,7 @@ const SPIRITS = [
       mkCard('Eclipse Bite', '🌑',1,'damage',94,'Bite from the shadow.'),
       mkCard('Dark Howl',    '💀',2,'aoe',   72,'Soul-rending howl.',{type:'weaken',val:0.75,turns:2}),
       mkCard('Umbra Drain',  '🦇',2,'drain', 108,'Drain life from eclipse.'),
-      mkCard('Null Cloak',   '🛡',1,'shield',80,'Void-dampening shield.'),
+      mkCard('Null Cloak',   '🛡',1, 'ally_shield',80,'Void-dampening shield.'),
     ]},
   { id:'wraithlily', name:'Vesperis', img:1, emoji:'✦', cls:'void', hp:455, atk:88, spd:106,
     passive:'Debuffs she applies last +1 extra turn',
@@ -1647,7 +1359,7 @@ const SPIRITS = [
       mkCard('Cursed Bloom', '🌸',1,'damage',88,'Toxic bloom strike.',{type:'weaken',val:0.8,turns:3}),
       mkCard('Wither Wave',  '💜',2,'aoe',   65,'Wilt all foes.',{type:'weaken',val:0.85,turns:3}),
       mkCard('Thorn Drain',  '🌑',2,'drain', 95,'Drain through cursed roots.'),
-      mkCard('Voidpetal',    '🛡',1,'shield',72,'Dark petal armor.'),
+      mkCard('Voidpetal',    '🛡',1, 'ally_shield',72,'Dark petal armor.'),
     ]},
   { id:'mirrorfiend', name:'Reflexis', img:1, emoji:'🪞', cls:'void', hp:480, atk:90, spd:94,
     passive:'Copies last effect applied to any spirit',
@@ -1673,7 +1385,7 @@ const SPIRITS = [
       mkCard('Briar Kick',   '🐇',1,'damage',80,'Razor grass kick.'),
       mkCard('Pollen Rush',  '🌼',2,'aoe',   62,'Pollen blinds all.',{type:'weaken',val:0.8,turns:2}),
       mkCard('Meadow Heal',  '💚',2,'ally_heal',105,'Sunlit healing touch.'),
-      mkCard('Leaf Burst',   '🛡',1,'shield',80,'Burst of leaves shield.'),
+      mkCard('Leaf Burst',   '🛡',1, 'ally_shield',80,'Burst of leaves shield.'),
     ]},
   { id:'thornwarden', name:'Brarthis', img:1, emoji:'🌵', cls:'nature', hp:570, atk:82, spd:68,
     passive:'Thorns 2.0: reflect 18 dmg AND apply Weaken on hit',
@@ -1697,7 +1409,7 @@ const SPIRITS = [
       mkCard('Mycel Strike', '🍄',1,'damage',80,'Fungal club swing.',{type:'burn',val:6,turns:2}),
       mkCard('Spore Cloud',  '☁',2,'aoe',   66,'Toxic cloud chokes all.',{type:'burn',val:8,turns:2}),
       mkCard('Mycel Mend',   '💚',2,'ally_heal',115,'Deep fungal regeneration.'),
-      mkCard('Hyphae Shell', '🛡',1,'shield',110,'Mycelium hardens around self.'),
+      mkCard('Hyphae Shell', '🛡',1, 'ally_shield',110,'Mycelium hardens around self.'),
     ]},
 ];
 
@@ -1819,8 +1531,6 @@ function buildSpiritPools() {
         effect: t.effect ? {...t.effect} : null,
       };
       if (t.pierce) card.pierce = true;
-      if (t.targeting) card.targeting = t.targeting;
-      card.targeting = deriveTargeting(card);
       return card;
     });
     s.pool = [...s.parts, ...extras];
@@ -2120,36 +1830,55 @@ async function loadProfile(playerId) {
 }
 
 async function submitMatchResult(matchId, winnerId) {
-  // Call the SECURITY DEFINER database function which bypasses RLS,
-  // allowing the host to update both players' ELO in a single atomic call.
-  try { await _refreshSessionForWrite(); } catch (e) { throw e; }
-
-  const { data: result, error } = await db.rpc('submit_match_result', {
-    p_match_id:  matchId,
-    p_winner_id: winnerId
-  });
-  if (error) throw new Error('ELO update failed: ' + error.message);
-  if (!result) throw new Error('ELO update returned no data');
-
-  // Map the DB result back to the shape the rest of the code expects
-  const myId = PLAYER && PLAYER.id;
-  const myKey = myId === result.p1.playerId ? 'p1' : 'p2';
-  const mine = result[myKey];
-  const meBefore = mine.eloBefore;
-
-  // Patch PLAYER in memory immediately (no need to wait for loadProfile)
-  if (PLAYER) {
-    PLAYER.elo             = mine.elo;
-    PLAYER.rank            = mine.rank;
-    PLAYER.division        = mine.division;
-    PLAYER.placement_games = mine.placement_games;
-    PLAYER.placement_wins  = mine.placement_wins;
-  }
-
+  const { data: m } = await db.from('matches').select('*').eq('id', matchId).single();
+  if (!m) throw new Error('Match not found.');
+  const { data: p1 } = await db.from('players').select('*').eq('id', m.player1_id).single();
+  const { data: p2 } = await db.from('players').select('*').eq('id', m.player2_id).single();
+  const p1Won = winnerId === m.player1_id;
+  const p1Next = applyMatchToPlayer(p1, p2.elo, p1Won);
+  const p2Next = applyMatchToPlayer(p2, p1.elo, !p1Won);
+  await db.from('players').update({
+    elo: p1Next.elo, rank: p1Next.rank, division: p1Next.division,
+    placement_games: p1Next.placement_games, placement_wins: p1Next.placement_wins,
+    div_demote_shield: p1Next.div_demote_shield, rank_entry_shield: p1Next.rank_entry_shield,
+    peak_rank: p1Next.peak_rank
+  }).eq('id', m.player1_id);
+  await db.from('players').update({
+    elo: p2Next.elo, rank: p2Next.rank, division: p2Next.division,
+    placement_games: p2Next.placement_games, placement_wins: p2Next.placement_wins,
+    div_demote_shield: p2Next.div_demote_shield, rank_entry_shield: p2Next.rank_entry_shield,
+    peak_rank: p2Next.peak_rank
+  }).eq('id', m.player2_id);
+  await db.from('matches').update({
+    status: 'completed', winner_id: winnerId,
+    player1_elo_before: p1.elo, player2_elo_before: p2.elo,
+    player1_elo_delta: p1Next.delta, player2_elo_delta: p2Next.delta,
+    is_placement: (p1.placement_games < PLACEMENT_MATCHES) || (p2.placement_games < PLACEMENT_MATCHES)
+  }).eq('id', matchId);
+  const mine = PLAYER && PLAYER.id === m.player1_id ? p1Next : p2Next;
+  const meBefore = PLAYER && PLAYER.id === m.player1_id ? p1.elo : p2.elo;
   return { mine, meBefore };
 }
 
+function generateRoomCode() {
+  const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for (let i = 0; i < 6; i++) c += alpha[Math.floor(Math.random()*alpha.length)];
+  return c;
+}
 
+// True when a Supabase error indicates the JWT is stale / not authenticated:
+// RLS rejections almost always mean auth.uid() resolved to null at the row check.
+function _isAuthOrRlsError(err) {
+  if (!err) return false;
+  const code = err.code || '';
+  const msg  = (err.message || '').toLowerCase();
+  return code === '42501' || code === 'PGRST301' || msg.includes('row-level security') || msg.includes('jwt') || msg.includes('not authenticated');
+}
+
+// Force-refresh the Supabase session JWT before a critical write. If the
+// session is dead beyond recovery, throws a user-friendly error that the
+// caller can show as a "please sign back in" toast.
 async function _refreshSessionForWrite() {
   try {
     const res = await withTimeout(db.auth.refreshSession(), 4000, 'Session refresh');
@@ -2160,15 +1889,6 @@ async function _refreshSessionForWrite() {
     console.warn('session refresh failed', e);
     throw new Error('Your sign-in session has expired. Please sign out and sign back in.');
   }
-}
-
-function generateRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid confusion
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
 }
 
 async function createMatch(player1Id, spiritName) {
@@ -2371,48 +2091,8 @@ function toast(msg, ms=1800) {
 // ═══════════════════════════════════════════════════
 let G = {};
 
-// ── Frontline/Backline + status-effect helpers ──────────────────────
-function newStatusEffects() {
-  return { taunt:0, poison:0, bleed:0, shield_boost:0, vulnerable:0, weak:0,
-           silence:0, stealth:0, rage:0, regen:0, heal_block:0, echo:0, volatile:false };
-}
-function getLivingFront(team) { return team.filter(s => !s.dead && s.position === 'front'); }
-function getLivingBack(team)  { return team.filter(s => !s.dead && s.position === 'back'); }
-
-// Who can a given card actually hit on `team`? Encapsulates taunt > stealth >
-// front-wall > backline-exposed rules.
-function getValidTargets(team, card) {
-  const targeting = (card && card.targeting) || deriveTargeting(card || {});
-  const living = team.filter(s => !s.dead);
-  if (targeting === 'all')       return living;
-  if (targeting === 'random_any') return living;
-  if (targeting === 'pierce') {
-    // pierce ignores position but still cannot hit stealthed spirits
-    const t = living.filter(s => !(s.statusEffects && s.statusEffects.stealth > 0));
-    return t.length ? t : living;
-  }
-  // Directed/random-front targeting respects the wall.
-  // Taunt overrides everything (taunted spirits are the only valid targets).
-  const taunted = living.filter(s => s.statusEffects && s.statusEffects.taunt > 0);
-  if (taunted.length) return taunted;
-  // Stealthed spirits are invisible to directed/front attacks.
-  const visible = living.filter(s => !(s.statusEffects && s.statusEffects.stealth > 0));
-  const front = visible.filter(s => s.position === 'front');
-  if (front.length) return front;
-  const back = visible.filter(s => s.position === 'back');
-  if (back.length) return back;        // wall is down → backline exposed
-  return visible.length ? visible : living;
-}
-
-// Apply N stacks/turns of a named status to a spirit (clamped, friendly to MP sync).
-function applyStatus(target, key, amount) {
-  if (!target || !target.statusEffects) return;
-  if (key === 'volatile') { target.statusEffects.volatile = true; return; }
-  target.statusEffects[key] = Math.max(0, (target.statusEffects[key] || 0) + (amount || 0));
-}
-
 function initState(playerTeam, enemyTeam) {
-  function mkCombatant(s, isEnemy, slot) {
+  function mkCombatant(s, isEnemy) {
     const clone = JSON.parse(JSON.stringify(s));
     // For player spirits we use their owned-loadout (4 cards from pool).
     // For enemies & fallback, use signature parts.
@@ -2436,12 +2116,6 @@ function initState(playerTeam, enemyTeam) {
       reviveUsed: false,
       isEnemy,
       firstHit: true,
-      // ── Frontline/Backline positioning ──
-      slot: slot,
-      position: (slot <= 1) ? 'front' : 'back',   // slots 0-1 front, 2-4 back
-      // ── New named status-effect system (layered beside legacy `effects` array) ──
-      statusEffects: newStatusEffects(),
-      furyTurns: 0,         // remaining turns of FURY (rage payoff)
     };
   }
   G = {
@@ -2451,8 +2125,8 @@ function initState(playerTeam, enemyTeam) {
     maxEnergy: 5,
     regenPerTurn: 3,
     enemyEnergy: 5,     // AI uses the same rules as the player now
-    playerTeam: playerTeam.map((s, i) => mkCombatant(s, false, i)),
-    enemyTeam:  enemyTeam.map((s, i) => mkCombatant(s, true, i)),
+    playerTeam: playerTeam.map(s => mkCombatant(s, false)),
+    enemyTeam:  enemyTeam.map(s => mkCombatant(s, true)),
     hand: [],       // {card, owner} — active hand (4 cards start, +2 drawn each turn)
     deck: [],       // {card, owner} — the Veilshard Tome (remaining cards)
     selectedCard: null,
@@ -2539,12 +2213,6 @@ function classMultiplier(attackerCls, defenderCls) {
 // ═══════════════════════════════════════════════════
 function resolveCard(attacker, card, target) {
   if (attacker.dead || target.dead) return;
-  // BLEED: a bleeding spirit takes self-damage each time it plays a card (not on echo repeat).
-  if (!card._isEchoRepeat && attacker.statusEffects && attacker.statusEffects.bleed > 0) {
-    const bd = 10 * attacker.statusEffects.bleed;
-    addLog(`🩸 ${attacker.name} bleeds for ${bd}!`, 'crit');
-    applyDamage(attacker, bd);
-  }
   const atkBonus = attacker.atkMod || 1;
   const clsMult  = classMultiplier(attacker.cls, target.cls);
   const galewingBonus = (attacker.id === 'galewing' && attacker.firstHit) ? 1.2 : 1;
@@ -2582,14 +2250,6 @@ function resolveCard(attacker, card, target) {
   // Weaken target?
   const weakEff = !lunarowlIgnoreWeaken ? attacker.effects.find(e => e.type === 'weaken') : null;
   if (weakEff) power *= weakEff.val;
-
-  // New status outgoing modifiers (layered atop legacy weaken):
-  const ase = attacker.statusEffects;
-  if (ase) {
-    if (ase.weak > 0)  power *= Math.max(0.4, 1 - 0.15 * ase.weak);   // WEAK: -15%/stack, floor 40%
-    if (ase.rage > 0)  power += 8 * ase.rage;                          // RAGE: +8 flat/stack
-    if (attacker.furyTurns > 0) power += (card.power || 0);            // FURY: ~double base damage
-  }
 
   switch (card.type) {
     case 'damage': {
@@ -2734,15 +2394,6 @@ function resolveCard(attacker, card, target) {
   // Pyre Ascension stacks, Riptide flag, Voltage Surge counter, Resonance heal-all, etc.)
   applyEmblemHook('onCardPlayed', side, { attacker, card, target });
 
-  // ECHO: the next card a spirit plays resolves twice, then is consumed.
-  if (!card._isEchoRepeat && attacker.statusEffects && attacker.statusEffects.echo > 0 && !attacker.dead && !target.dead) {
-    attacker.statusEffects.echo = 0;
-    addLog(`✦ ${attacker.name}'s Echo triggers — ${card.name} resolves twice!`, 'warn');
-    card._isEchoRepeat = true;
-    resolveCard(attacker, card, target);
-    delete card._isEchoRepeat;
-  }
-
   checkDeaths();
   renderBattle();
 }
@@ -2764,10 +2415,6 @@ function applyDamage(target, raw, attacker=null, pierce=false) {
   // Fires for whichever side OWNS the target — their emblem mitigates incoming damage.
   const defSide = target.isEnemy ? 'enemy' : 'player';
   dmg = applyEmblemHook('modifyIncomingDamage', defSide, { target, attacker, dmg }) ?? dmg;
-  // VULNERABLE status: +15% incoming damage per stack
-  if (target.statusEffects && target.statusEffects.vulnerable > 0) {
-    dmg = dmg * (1 + 0.15 * target.statusEffects.vulnerable);
-  }
   dmg = Math.max(0, Math.round(dmg));
   if (target.shield > 0 && !pierce) {
     const absorbed = Math.min(target.shield, dmg);
@@ -2827,61 +2474,12 @@ function checkDeaths() {
       addLog(`💀 ${c.name} has fallen!`, 'crit');
       // SFX: spirit eliminated
       SoundManager.play('cardElim');
-      // VOLATILE: on death, deal 40 damage to ALL other living spirits (friend AND foe).
-      // Chain reactions are intentional. Guard against re-entrancy on the same victim.
-      if (c.statusEffects && c.statusEffects.volatile && !c._volatileFired) {
-        c._volatileFired = true;
-        addLog(`💥 ${c.name} explodes! All spirits take 40 damage!`, 'crit');
-        const everyone = [...G.playerTeam, ...G.enemyTeam];
-        for (const other of everyone) {
-          if (other !== c && !other.dead) applyDamage(other, 40, null, true);
-        }
-      }
       // Emblem onDeath: fires for the SIDE that just lost a spirit
       // (Symbiosis, Verdant Collapse, Soul Forge, Phoenix Cycle bookkeeping)
       const deadSide = c.isEnemy ? 'enemy' : 'player';
       applyEmblemHook('onDeath', deadSide, { victim: c });
     }
   }
-}
-
-// ── New named status-effect processing (turn_start / turn_end) ──────
-// Per-team turn boundaries (this engine has shared-energy team turns, not
-// per-spirit turns). Dormant until Phase 2 cards apply these statuses.
-function processStatusEffects(spirit, phase) {
-  if (!spirit || spirit.dead || !spirit.statusEffects) return;
-  const se = spirit.statusEffects;
-  if (phase === 'turn_start') {
-    if (se.poison > 0) {
-      const dmg = 15 * se.poison;
-      addLog(`☠ ${spirit.name} writhes in poison! -${dmg} HP`, 'crit');
-      applyDamage(spirit, dmg);
-      se.poison = Math.max(0, se.poison - 1);
-    }
-    // Duration/stack decay for the timed statuses.
-    ['vulnerable','weak','silence','taunt','stealth','heal_block'].forEach(function (k) {
-      if (se[k] > 0) se[k]--;
-    });
-    // RAGE → FURY: at 10 stacks, become furious for 2 turns and consume rage.
-    if (se.rage >= 10 && spirit.furyTurns <= 0) {
-      spirit.furyTurns = 2; se.rage = 0;
-      addLog(`🔥 ${spirit.name} enters FURY!`, 'warn');
-    }
-  } else if (phase === 'turn_end') {
-    if (se.regen > 0) {
-      if (se.heal_block === 0) {
-        const heal = 20 * se.regen;
-        spirit.hp = Math.min(spirit.maxHp, spirit.hp + heal);
-        addLog(`💚 ${spirit.name} regenerates ${heal} HP`, '');
-      }
-      se.regen = Math.max(0, se.regen - 1);
-    }
-    if (spirit.furyTurns > 0) spirit.furyTurns--;
-  }
-}
-function processTeamStatus(team, phase) {
-  for (const c of team) processStatusEffects(c, phase);
-  checkDeaths();
 }
 
 function processEffects(team) {
@@ -2930,8 +2528,6 @@ function runEnemyTurn() {
     G.enemyEnergy = Math.min(G.maxEnergy, (G.enemyEnergy||0) + Math.max(0, G.regenPerTurn - silence));
   }
   let energy = G.enemyEnergy;
-  // Enemy turn start: poison tick + status decay + fury check.
-  processTeamStatus(G.enemyTeam, 'turn_start');
   const alive = G.enemyTeam.filter(c => !c.dead);
   const playerAlive = G.playerTeam.filter(c => !c.dead);
   if (!alive.length || !playerAlive.length) { nextTurn(); return; }
@@ -2946,29 +2542,17 @@ function runEnemyTurn() {
     if (!cards.length) { energy = 0; break; }
     const card = cards[Math.floor(Math.random() * cards.length)];
 
-    // Pick target — now Frontline/Backline-aware.
-    const tg = card.targeting || deriveTargeting(card);
+    // Pick target: prefer lowest HP player
     let target;
-    if (['shield','heal','buff','ally_shield','ally_heal'].includes(card.type) || tg === 'self' || tg === 'ally' || tg === 'ally_all') {
-      // enemy buffs/heals its own lowest-HP ally
-      target = alive.slice().sort((a,b)=>a.hp-b.hp)[0];
-    } else if (tg === 'all') {
+    if (['shield','heal','buff','ally_shield','ally_heal'].includes(card.type)) {
+      target = alive.sort((a,b)=>a.hp-b.hp)[0];
+    } else if (card.type === 'aoe') {
       target = playerAlive[0];
     } else {
-      // Attacks on the player respect the player's front wall + taunt via getValidTargets.
-      const pool = getValidTargets(G.playerTeam, card);
-      const fallback = playerAlive;
-      const choices = pool.length ? pool : fallback;
-      if (tg === 'pierce') {
-        // smart pierce → hit the player's lowest-HP living spirit
-        target = choices.slice().sort((a,b)=>a.hp-b.hp)[0];
-      } else {
-        // prefer class advantage within the valid pool, else random
-        const adv = choices.filter(p => CLASSES[attacker.cls].strong === p.cls);
-        target = adv.length ? adv[0] : choices[Math.floor(Math.random()*choices.length)];
-      }
+      // Prefer class advantage
+      const adv = playerAlive.filter(p => CLASSES[attacker.cls].strong === p.cls);
+      target = adv.length ? adv[0] : playerAlive.sort((a,b)=>a.hp-b.hp)[0];
     }
-    if (!target) { energy = 0; break; }
     actions.push({ card, attacker, target });
     energy -= card.cost;
   }
@@ -2993,7 +2577,6 @@ function runEnemyTurn() {
 function nextTurn() {
   // End-of-round bookkeeping: enemy turn just finished → both sides completed a turn = round end
   applyEmblemHook('turnEnd', 'enemy', { team: G.enemyTeam });
-  processTeamStatus(G.enemyTeam, 'turn_end');   // enemy regen/fury decay
   G.roundCounter = (G.roundCounter||0) + 1;
   applyEmblemHook('roundEnd', 'player', { team: G.playerTeam });
   applyEmblemHook('roundEnd', 'enemy',  { team: G.enemyTeam });
@@ -3012,8 +2595,6 @@ function nextTurn() {
   G.energy = Math.min(G.maxEnergy, G.energy + Math.max(0, G.regenPerTurn - playerSilencePenalty));
   G.phase = 'player';
   applyEmblemHook('turnStart', 'player', { team: G.playerTeam });
-  processTeamStatus(G.playerTeam, 'turn_start');   // player poison tick + status decay + fury check
-  if (G.playerTeam.every(c => c.dead)) { endGame(false); return; }
   G.selectedCard = null;
   G.selectedCardIdx = null;
   G.pendingActions = [];
@@ -3072,7 +2653,6 @@ function endTurn() {
   }
   G.phase = 'enemy';
   applyEmblemHook('turnEnd', 'player', { team: G.playerTeam });
-  processTeamStatus(G.playerTeam, 'turn_end');   // player regen/fury decay at end of player turn
   applyEmblemHook('turnStart', 'enemy', { team: G.enemyTeam });
   renderBattle();
   addLog('── Enemy turn ──', '');
@@ -3127,12 +2707,6 @@ function selectCard(idx) {
   if (G.phase !== 'player') return;
   const { card, owner } = G.hand[idx];
   if (owner.dead) return;
-  // SILENCE: a silenced spirit may only play attack cards (damage/aoe/drain).
-  const _isAttackCard = (card.type === 'damage' || card.type === 'aoe' || card.type === 'drain');
-  if (owner.statusEffects && owner.statusEffects.silence > 0 && !_isAttackCard) {
-    addLog(`🔇 ${owner.name} is silenced and cannot use ${card.name}!`, 'crit');
-    return;
-  }
   // Emblem modifyCardCost: Cinder Rush, Ragnarok Seal, Voltage Surge token, etc.
   const costCtx = { card, cardIdx: idx, owner, cost: card.cost, free: false };
   applyEmblemHook('modifyCardCost', 'player', costCtx);
@@ -3146,10 +2720,8 @@ function selectCard(idx) {
   // SFX: card pulled from deck
   SoundManager.play('cardPlay');
 
-  const targeting = card.targeting || deriveTargeting(card);
-
-  // SELF — buff/shield/heal on the owner
-  if (targeting === 'self') {
+  // Self-target cards
+  if (['shield','heal','buff'].includes(card.type)) {
     G.energy -= effectiveCost;
     G.hand.splice(idx, 1);
     applyCardPlay(owner, card, owner, 'self', G.playerTeam.indexOf(owner));
@@ -3158,22 +2730,14 @@ function selectCard(idx) {
     return;
   }
 
-  // ALLY — player selects a friendly spirit
-  if (targeting === 'ally' || targeting === 'ally_all') {
-    if (targeting === 'ally_all') {
-      // hits all allies — auto-resolve on the owner as anchor (resolveCard handles ally_* per-type)
-      G.energy -= effectiveCost;
-      G.hand.splice(idx, 1);
-      applyCardPlay(owner, card, owner, 'ally', G.playerTeam.indexOf(owner));
-      G.selectedCard = null;
-      renderBattle();
-      return;
-    }
+  // Ally-target cards — need player to click an ally
+  if (card.type === 'ally_shield' || card.type === 'ally_heal') {
     if (G.selectedCardIdx === idx) {
-      G.selectedCard = null; G.selectedCardIdx = null;
+      G.selectedCard = null;
+      G.selectedCardIdx = null;
       document.getElementById('btn-cancel').classList.add('hidden');
     } else {
-      G.selectedCard = { card, owner, idx, targetMode: 'ally', _spendCost: effectiveCost };
+      G.selectedCard = { card, owner, idx, targetMode: 'ally' };
       G.selectedCardIdx = idx;
       document.getElementById('btn-cancel').classList.remove('hidden');
       addLog(`Select an ally target for ${card.name}`, 'warn');
@@ -3182,43 +2746,38 @@ function selectCard(idx) {
     return;
   }
 
-  // ALL — AoE hits every living enemy
-  if (targeting === 'all') {
+  // AOE: auto-hits all enemies
+  if (card.type === 'aoe') {
     G.energy -= effectiveCost;
     G.hand.splice(idx, 1);
-    const t = G.enemyTeam.find(e => !e.dead);
-    if (t) applyCardPlay(owner, card, t, 'aoe', G.enemyTeam.indexOf(t));
+    const target = G.enemyTeam.find(e => !e.dead);
+    if (target) applyCardPlay(owner, card, target, 'aoe', G.enemyTeam.indexOf(target));
     G.selectedCard = null;
     renderBattle();
     return;
   }
 
-  // RANDOM_FRONT / RANDOM_ANY — auto-resolve, no player target choice
-  if (targeting === 'random_front' || targeting === 'random_any') {
-    const pool = getValidTargets(G.enemyTeam, card);
-    if (!pool.length) { addLog('No valid target!', 'crit'); return; }
-    const t = pool[Math.floor(Math.random() * pool.length)];
-    const tIdx = G.enemyTeam.indexOf(t);
+  // Drain: targets enemy
+  if (card.type === 'drain') {
     G.energy -= effectiveCost;
     G.hand.splice(idx, 1);
-    addLog(`${card.name} strikes ${t.name} at random!`, '');
-    shakeEl(t);
-    applyCardPlay(owner, card, t, 'enemy', tIdx);
+    const target = G.enemyTeam.find(e => !e.dead);
+    if (target) applyCardPlay(owner, card, target, 'enemy', G.enemyTeam.indexOf(target));
     G.selectedCard = null;
     renderBattle();
     return;
   }
 
-  // SELECT_FRONT / PIERCE — player picks a target (validity enforced in clickEnemy + UI)
+  // Damage: need player to select a target
   if (G.selectedCardIdx === idx) {
     G.selectedCard = null;
     G.selectedCardIdx = null;
     document.getElementById('btn-cancel').classList.add('hidden');
   } else {
-    G.selectedCard = { card, owner, idx, targetMode: 'enemy', pierce: (targeting === 'pierce'), _spendCost: effectiveCost };
+    G.selectedCard = { card, owner, idx };
     G.selectedCardIdx = idx;
     document.getElementById('btn-cancel').classList.remove('hidden');
-    addLog(targeting === 'pierce' ? `⚔ PIERCE — select ANY enemy for ${card.name}` : `Select a frontline target for ${card.name}`, targeting === 'pierce' ? 'warn' : '');
+    addLog(`Select an enemy target for ${card.name}`, '');
   }
   renderBattle();
 }
@@ -3237,15 +2796,9 @@ function clickEnemy(idx) {
     return;
   }
   const target = G.enemyTeam[idx];
-  if (!target || target.dead) return;
+  if (target.dead) return;
   const { card, owner, idx: handIdx } = G.selectedCard;
-  // Enforce Frontline/Backline rules: the clicked spirit must be a valid target.
-  const valid = getValidTargets(G.enemyTeam, card);
-  if (valid.indexOf(target) === -1) {
-    addLog(`${target.name} can't be targeted — strike the frontline first!`, 'crit');
-    return;
-  }
-  const spendCost = G.selectedCard._freeCost ? 0 : (G.selectedCard._spendCost != null ? G.selectedCard._spendCost : card.cost);
+  const spendCost = G.selectedCard._freeCost ? 0 : card.cost;
   G.energy -= spendCost;
   if (handIdx !== undefined) G.hand.splice(handIdx, 1);
   applyCardPlay(owner, card, target, 'enemy', idx);
@@ -3261,7 +2814,7 @@ function clickAlly(idx) {
   const target = G.playerTeam[idx];
   if (target.dead) return;
   const { card, owner, idx: handIdx } = G.selectedCard;
-  const spendCostAlly = G.selectedCard._freeCost ? 0 : (G.selectedCard._spendCost != null ? G.selectedCard._spendCost : card.cost);
+  const spendCostAlly = G.selectedCard._freeCost ? 0 : card.cost;
   G.energy -= spendCostAlly;
   if (handIdx !== undefined) G.hand.splice(handIdx, 1);
   applyCardPlay(owner, card, target, 'ally', idx);
@@ -3292,57 +2845,19 @@ function hpColor(pct) {
   return 'linear-gradient(90deg,#e84040,#c02020)';
 }
 
-// Small badge row for the new named status effects (stacks/turns shown as count).
-function statusBadgesHtml(c) {
-  const se = c.statusEffects; if (!se) return '';
-  const defs = [
-    ['poison','☠',se.poison], ['bleed','🩸',se.bleed], ['vulnerable','💔',se.vulnerable],
-    ['weak','🔻',se.weak], ['silence','🔇',se.silence], ['stealth','👻',se.stealth],
-    ['rage','😡',se.rage], ['regen','💚',se.regen], ['heal_block','🚫',se.heal_block],
-    ['echo','🔁',se.echo], ['taunt','🛑',se.taunt]
-  ];
-  let html = '';
-  for (const [k, icon, v] of defs) if (v > 0) html += `<span class="se-badge se-${k}" title="${k} ${v}">${icon}${v}</span>`;
-  if (se.volatile)        html += `<span class="se-badge se-volatile" title="volatile">💣</span>`;
-  if (c.furyTurns > 0)    html += `<span class="se-badge se-fury" title="FURY ${c.furyTurns}">⚡FURY</span>`;
-  return html ? `<div class="c-se-badges">${html}</div>` : '';
-}
-
 function renderRow(id, team, isEnemy) {
   const row = document.getElementById(id);
   row.innerHTML = '';
   const allyMode = G.selectedCard && G.selectedCard.targetMode === 'ally';
   const enemyMode = G.selectedCard && !allyMode;
-  // During enemy targeting, compute who is actually a legal target (front-wall/taunt/pierce/stealth).
-  const selCard = G.selectedCard && G.selectedCard.card;
-  const validSet = (isEnemy && enemyMode && selCard) ? new Set(getValidTargets(team, selCard)) : null;
-  const isPierce = !!(G.selectedCard && G.selectedCard.pierce);
-
   team.forEach((c, i) => {
-    // Insert the FRONT|BACK divider between slot 1 and 2.
-    if (i === 2) {
-      const divr = document.createElement('div');
-      divr.className = 'pos-divider';
-      row.appendChild(divr);
-    }
     const pct = Math.max(0, c.hp / c.maxHp);
     const statusIcons = c.effects.map(e => ({burn:'🔥',stun:'⚡',weaken:'💀',slow:'🐢'}[e.type]||'')).filter(Boolean).join('');
-
-    const targetable = !c.dead && isEnemy && enemyMode && (!validSet || validSet.has(c));
-    const untargetable = !c.dead && isEnemy && enemyMode && validSet && !validSet.has(c);
-    const isClickable = targetable || (!c.dead && !isEnemy && allyMode);
-
-    let cls = 'combatant';
-    cls += (c.position === 'back') ? ' pos-back' : ' pos-front';
-    if (c.dead) cls += ' dead';
-    if (isClickable) cls += (isEnemy ? ' clickable enemy-highlight' : ' clickable highlight');
-    if (targetable)   cls += isPierce ? ' targetable pierce-target' : ' targetable';
-    if (untargetable) cls += ' untargetable';
-    if (c.statusEffects && c.statusEffects.taunt > 0)   cls += ' taunted';
-    if (c.statusEffects && c.statusEffects.stealth > 0) cls += ' stealthed';
+    const isClickable = !c.dead && ((isEnemy && enemyMode) || (!isEnemy && allyMode));
+    const highlightCls = isClickable ? (isEnemy ? ' clickable enemy-highlight' : ' clickable highlight') : '';
 
     const div = document.createElement('div');
-    div.className = cls;
+    div.className = 'combatant' + (c.dead?' dead':'') + highlightCls;
     div.setAttribute('aria-describedby', 'tooltip');
     div.setAttribute('data-idx', i);
     div.id = 'comb-' + (isEnemy?'e':'p') + i;
@@ -3350,11 +2865,9 @@ function renderRow(id, team, isEnemy) {
     const portraitHtml = (c.img && SPIRIT_IMGS[c.name])
       ? `<img src="${SPIRIT_IMGS[c.name]}" class="spirit-portrait" alt="${c.name}">`
       : `<div class="c-emoji">${c.emoji}</div>`;
-    const backShield = (c.position === 'back' && !c.dead) ? `<div class="pos-shield-ic" title="Backline — protected">🛡</div>` : '';
     div.innerHTML = `
       <div class="c-status">${statusIcons}</div>
-      ${statusBadgesHtml(c)}
-      <div class="c-portrait-wrap">${portraitHtml}${backShield}</div>
+      ${portraitHtml}
       <div class="c-hp-bar"><div class="c-hp-fill" style="width:${Math.round(pct*100)}%;background:${hpColor(pct)};"></div></div>
       <div class="c-name">${c.name}</div>
       ${c.shield > 0 ? `<div style="font-size:10px;color:#a0c8ff;">🛡${c.shield}/${200}</div>` : ''}
@@ -3524,6 +3037,34 @@ function spawnParticlesBurst() {
 // TOOLTIP
 // ═══════════════════════════════════════════════════
 
+
+function cardTargetingLabel(card) {
+  const t = card.targeting || deriveTargeting(card);
+  switch (t) {
+    case 'random_front': return 'Random frontline';
+    case 'select_front': return 'Choose frontline';
+    case 'random_any':   return 'Random enemy';
+    case 'pierce':       return 'Choose any enemy';
+    case 'all':          return 'All enemies';
+    case 'ally':         return 'Choose ally';
+    case 'ally_all':     return 'All allies';
+    case 'self':         return 'Self';
+    default:             return '';
+  }
+}
+
+function cardTargetingChip(card) {
+  const label = cardTargetingLabel(card);
+  return label
+    ? `<span style="display:inline-block;margin-bottom:4px;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);font-size:10px;letter-spacing:.4px;color:var(--gold-bright);">${label}</span><br>`
+    : '';
+}
+
+function cardTargetingText(card) {
+  const label = cardTargetingLabel(card);
+  return label ? `[${label}] ` : '';
+}
+
 function cardMechDesc(card, owner) {
   const typeLabels = {
     damage:      `Deals <b>${card.power}</b> DMG to target`,
@@ -3535,7 +3076,7 @@ function cardMechDesc(card, owner) {
     drain:       `Deals <b>${card.power}</b> DMG, heals ~<b>${Math.round(card.power*0.4)}</b> HP`,
     buff:        `Buffs self`,
   };
-  let base = typeLabels[card.type] || card.desc;
+  let base = cardTargetingChip(card) + (typeLabels[card.type] || card.desc);
   if (card.type === 'buff' && card.effect && card.effect.type === 'buff_atk') {
     base = `Grants <b>+${Math.round(card.effect.val*100)}% ATK</b> for ${card.effect.turns} turn${card.effect.turns>1?'s':''}`;
   }
@@ -3563,7 +3104,7 @@ function cardMechText(card) {
     drain:       `${card.power} DMG → heal ~${Math.round(card.power*0.4)} HP`,
     buff:        ``,
   };
-  let base = typeLabels[card.type] || card.desc;
+  let base = cardTargetingText(card) + (typeLabels[card.type] || card.desc);
   if (card.type === 'buff' && card.effect && card.effect.type === 'buff_atk') {
     base = `+${Math.round(card.effect.val*100)}% ATK for ${card.effect.turns}t`;
   }
@@ -3650,28 +3191,16 @@ function renderDraftSlots() {
   const row = document.getElementById('draft-slots');
   row.innerHTML = '';
   for (let i = 0; i < 5; i++) {
-    // Group label + divider: slots 1-2 = FRONTLINE, slots 3-5 = BACKLINE.
-    if (i === 0) row.appendChild(makeDraftGroupLabel('🛡 FRONTLINE', 'Exposed — takes the hits', 'front'));
-    if (i === 2) row.appendChild(makeDraftGroupLabel('✦ BACKLINE', 'Protected behind the wall', 'back'));
-    const isFront = i <= 1;
     const div = document.createElement('div');
-    div.className = 'draft-slot ' + (isFront ? 'slot-front' : 'slot-back') + (draftSelected[i] ? ' filled' : '');
-    const posBadge = `<span class="slot-pos-tag">${isFront ? 'FRONT' : 'BACK'}</span>`;
+    div.className = 'draft-slot' + (draftSelected[i] ? ' filled' : '');
     div.innerHTML = draftSelected[i]
-      ? `${posBadge}<span class="slot-emoji">${draftSelected[i].emoji}</span><span class="slot-name">${draftSelected[i].name}</span>`
-      : `${posBadge}<span style="font-size:20px">+</span><span>Slot ${i+1}</span>`;
+      ? `<span class="slot-emoji">${draftSelected[i].emoji}</span><span class="slot-name">${draftSelected[i].name}</span>`
+      : `<span style="font-size:20px">+</span><span>Slot ${i+1}</span>`;
     row.appendChild(div);
   }
   document.getElementById('draft-status').textContent =
-    draftSelected.length < 5 ? `Choose ${5-draftSelected.length} more spirit${5-draftSelected.length!==1?'s':''} · first 2 = Frontline, next 3 = Backline` : 'Team ready! (Slots 1-2 frontline, 3-5 backline)';
+    draftSelected.length < 5 ? `Choose ${5-draftSelected.length} more spirit${5-draftSelected.length!==1?'s':''}` : 'Team ready!';
   document.getElementById('draft-confirm').disabled = draftSelected.length < 5;
-}
-
-function makeDraftGroupLabel(title, sub, which) {
-  const d = document.createElement('div');
-  d.className = 'draft-group-label dgl-' + which;
-  d.innerHTML = `<div class="dgl-title">${title}</div><div class="dgl-sub">${sub}</div>`;
-  return d;
 }
 
 function renderDraftGrid() {
@@ -4676,28 +4205,13 @@ function mpHandleBroadcast(payload) {
         mpHostEndGame();
       }
       break;
-    case 'GAME_END': {
-      // Client receives the host's verdict. Host already called renderMatchResult locally.
+    case 'GAME_END':
+      // Client receives the host's verdict; host already showed its own result locally.
       if (!MP.isHost) {
-        const d = payload.data || {};
-        const iWon = d.winnerId === (AUTH_USER && AUTH_USER.id);
-        // Patch PLAYER immediately from the host's embedded result so renderMatchResult
-        // sees the correct ELO/rank without racing the DB write.
-        if (d.clientResult && PLAYER && d.clientResult.playerId === PLAYER.id) {
-          const cr = d.clientResult;
-          PLAYER.elo            = cr.elo;
-          PLAYER.rank           = cr.rank;
-          PLAYER.division       = cr.division;
-          PLAYER.placement_games = cr.placement_games;
-          PLAYER.placement_wins  = cr.placement_wins;
-          MP._eloFromPayload = true; // skip loadProfile in renderMatchResult
-          MP._clientEloDelta  = cr.delta;
-          MP._clientEloBefore = cr.eloBefore;
-        }
+        const iWon = payload.data && payload.data.winnerId === (AUTH_USER && AUTH_USER.id);
         renderMatchResult(iWon, /*isMp=*/true);
       }
       break;
-    }
     case 'BYE':
       mpHandleDisconnect();
       break;
@@ -4845,9 +4359,6 @@ function mpSerializeCombatant(c) {
     id: c.id, name: c.name, emoji: c.emoji, cls: c.cls, img: c.img||0,
     hp: c.hp, maxHp: c.maxHp, atk: c.atk, spd: c.spd, dead: !!c.dead,
     isEnemy: !!c.isEnemy, shield: c.shield||0, slot: c.slot,
-    position: c.position,                                  // front/back positioning
-    statusEffects: c.statusEffects ? {...c.statusEffects} : newStatusEffects(),
-    furyTurns: c.furyTurns || 0,
     effects: (c.effects||[]).map(e => ({...e})),
     reviveUsed: !!c.reviveUsed, _base_atk: c._base_atk, _stonewyrm_stacks: c._stonewyrm_stacks||0,
   };
@@ -4879,11 +4390,6 @@ function mpApplyState(state) {
       a.shield = b.shield||0; a.atk = b.atk;
       a.effects = (b.effects||[]).map(e=>({...e}));
       a.reviveUsed = !!b.reviveUsed;
-      // Sync positioning + named status effects so the client renders matching badges.
-      if (b.position) a.position = b.position;
-      if (b.slot != null) a.slot = b.slot;
-      a.statusEffects = b.statusEffects ? {...b.statusEffects} : (a.statusEffects || newStatusEffects());
-      a.furyTurns = b.furyTurns || 0;
     }
   }
   // Client side: G.playerTeam already represents client's team; remote.playerTeam too.
@@ -5009,63 +4515,11 @@ function mpHostAdvanceTurn(toHost) {
 async function mpHostEndGame() {
   if (MP._ended) return;
   MP._ended = true;
-
-  // Guard: ensure we have opponent's player ID before calling ELO update
-  if (!MP.oppPlayerId) {
-    console.error('mpHostEndGame: oppPlayerId is null — cannot submit result');
-    try { toast('⚠ Match ended but opponent ID missing — ELO not saved.', 6000); } catch {}
-    await renderMatchResult(G.enemyTeam.every(c => c.dead), /*isMp=*/true);
-    return;
-  }
-
-  // Guard: ensure match row has player2_id written (joiner may have been slow)
-  try {
-    const { data: mCheck } = await db.from('matches')
-      .select('player2_id').eq('id', MP.matchId).single();
-    if (!mCheck || !mCheck.player2_id) {
-      // Write it now — joiner's row update may have lost the race
-      await db.from('matches').update({ player2_id: MP.oppPlayerId, status: 'active' })
-        .eq('id', MP.matchId);
-    }
-  } catch (eCheck) { console.warn('match player2 guard', eCheck); }
-
   const hostWon = G.enemyTeam.every(c => c.dead);
   const winnerId = hostWon ? AUTH_USER.id : MP.oppPlayerId;
-  let resultPayload = { winnerId };
-  try {
-    const { mine, meBefore } = await submitMatchResult(MP.matchId, winnerId);
-    if (mine) {
-      resultPayload.hostResult = {
-        playerId: AUTH_USER.id, elo: mine.elo, rank: mine.rank, division: mine.division,
-        placement_games: mine.placement_games, placement_wins: mine.placement_wins,
-        delta: mine.delta, eloBefore: meBefore
-      };
-    }
-    // Fetch opponent's fresh DB row and match deltas to embed in the GAME_END payload.
-    // This lets the client apply their new ELO immediately, bypassing the DB race window.
-    try {
-      const { data: oppRow } = await db.from('players')
-        .select('elo,rank,division,placement_games,placement_wins').eq('id', MP.oppPlayerId).single();
-      const { data: mRow } = await db.from('matches')
-        .select('player1_elo_delta,player2_elo_delta,player1_elo_before,player2_elo_before,player1_id')
-        .eq('id', MP.matchId).single();
-      if (oppRow && mRow) {
-        const isP1 = mRow.player1_id === MP.oppPlayerId;
-        resultPayload.clientResult = {
-          playerId: MP.oppPlayerId,
-          elo: oppRow.elo, rank: oppRow.rank, division: oppRow.division,
-          placement_games: oppRow.placement_games, placement_wins: oppRow.placement_wins,
-          delta:     isP1 ? mRow.player1_elo_delta  : mRow.player2_elo_delta,
-          eloBefore: isP1 ? mRow.player1_elo_before : mRow.player2_elo_before
-        };
-      }
-    } catch (e2) { console.warn('oppResult fetch', e2); }
-  } catch (e) {
-    console.error('submitMatchResult failed:', e);
-    // Show visible error so the player knows ELO was not saved
-    try { toast('⚠ ELO save failed: ' + e.message, 5000); } catch {}
-  }
-  mpSend('GAME_END', resultPayload);
+  try { await submitMatchResult(MP.matchId, winnerId); }
+  catch (e) { console.warn('submitMatchResult', e); }
+  mpSend('GAME_END', { winnerId });
   await renderMatchResult(hostWon, /*isMp=*/true);
 }
 
@@ -5095,15 +4549,7 @@ async function renderMatchResult(won, isMp) {
         if (m.player1_id === AUTH_USER.id) { delta = m.player1_elo_delta||0; eloBefore = m.player1_elo_before||0; }
         else if (m.player2_id === AUTH_USER.id) { delta = m.player2_elo_delta||0; eloBefore = m.player2_elo_before||0; }
       }
-      // If client already got these from the GAME_END payload, prefer those (no race).
-      if (MP._clientEloDelta !== undefined) { delta = MP._clientEloDelta; MP._clientEloDelta = undefined; }
-      if (MP._clientEloBefore !== undefined) { eloBefore = MP._clientEloBefore; MP._clientEloBefore = undefined; }
-      // Only re-fetch from DB if we didn't already get fresh data via GAME_END payload.
-      // Fetching immediately after submitMatchResult risks reading stale data (race condition).
-      if (!MP._eloFromPayload) {
-        await loadProfile(AUTH_USER.id);
-      }
-      MP._eloFromPayload = false; // reset for next match
+      await loadProfile(AUTH_USER.id);
     } catch (e) { console.warn('post-match refresh', e); }
   }
 
@@ -5250,60 +4696,32 @@ async function authSubmit() {
   const origLabel = authMode === 'signin' ? 'ENTER THE PACT' : 'FORGE YOUR PACT';
   btn.disabled = true;
   btn.textContent = '…';
+  authMsg('Connecting to Supabase…');
   const resetBtn = () => { btn.disabled = false; btn.textContent = origLabel; };
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  if (!email || !password) { authMsg('Email and password required.', 'err'); resetBtn(); return; }
-
-  const MAX_RETRIES = 3;
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    const isLast = attempt === MAX_RETRIES;
-    try {
-      if (attempt === 1) authMsg('Signing in…');
-      else authMsg(`Retrying… (${attempt}/${MAX_RETRIES}) — server may be waking up ☕`);
-
-      if (authMode === 'signup') {
-        const username = document.getElementById('auth-username').value.trim();
-        // Signup doesn't need retry — it's a one-shot operation
-        const userId = await withTimeout(signUp(username, email, password), 20000, 'Sign-up');
-        AUTH_USER = { id: userId };
-        await withTimeout(loadProfile(userId), 20000, 'Profile load');
-        authMsg('Welcome, ' + username + '!', 'ok');
-        resetBtn();
-        showHome();
-        return;
-      } else {
-        _authSubmitting = true;
-      const user = await withTimeout(signIn(email, password), 20000, 'Sign-in');
-        AUTH_USER = user;
-        await withTimeout(loadProfile(user.id), 20000, 'Profile load');
-        _authSubmitting = false;
-        authMsg('Welcome back!', 'ok');
-        resetBtn();
-        showHome();
-        return;
-      }
-    } catch (err) {
-      console.warn(`Auth attempt ${attempt}:`, err);
-      const isTimeout = err.message && err.message.includes('timed out');
-      const isBadCreds = err.message && (
-        err.message.toLowerCase().includes('invalid') ||
-        err.message.toLowerCase().includes('credentials') ||
-        err.message.toLowerCase().includes('password') ||
-        err.message.toLowerCase().includes('not found') ||
-        err.message.toLowerCase().includes('email not confirmed')
-      );
-      // Don't retry bad credentials — that's a user error
-      if (isBadCreds || !isTimeout || isLast) {
-        _authSubmitting = false;
-        authMsg(err.message || 'Auth failed.', 'err');
-        resetBtn();
-        return;
-      }
-      // Timeout on non-last attempt: pause briefly then retry
-      authMsg(`Server is waking up, retrying in 2s… (${attempt}/${MAX_RETRIES})`);
-      await new Promise(r => setTimeout(r, 2000));
+  try {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    if (!email || !password) throw new Error('Email and password required.');
+    if (authMode === 'signup') {
+      const username = document.getElementById('auth-username').value.trim();
+      const userId = await withTimeout(signUp(username, email, password), 15000, 'Sign-up');
+      AUTH_USER = { id: userId };
+      await withTimeout(loadProfile(userId), 15000, 'Profile load');
+      authMsg('Welcome, ' + username + '!', 'ok');
+      resetBtn();
+      showHome();
+    } else {
+      const user = await withTimeout(signIn(email, password), 15000, 'Sign-in');
+      AUTH_USER = user;
+      await withTimeout(loadProfile(user.id), 15000, 'Profile load');
+      authMsg('Welcome back!', 'ok');
+      resetBtn();
+      showHome();
     }
+  } catch (err) {
+    console.warn(err);
+    authMsg(err.message || 'Auth failed.', 'err');
+    resetBtn();
   }
 }
 
@@ -5539,7 +4957,6 @@ function _wirePostIntroAudioUnlock() {
 // Tracks whether boot has flagged the current session as confirmed broken,
 // so repeated profile-load attempts from the auth listener don't ping-pong forever.
 let _bootRecovering = false;
-let _authSubmitting = false;
 
 async function _tryLoadProfileWithRecovery(userId, attempts = 3) {
   for (let i = 0; i < attempts; i++) {
@@ -5568,7 +4985,6 @@ async function boot() {
   // failure or transient SIGNED_OUT mid-battle should not kick the player out.
   db.auth.onAuthStateChange(async (event, session) => {
     if (_bootRecovering) return; // ignore listener noise while we're cleaning up
-    if (_authSubmitting) return; // authSubmit() is handling sign-in directly — don't interfere
 
     // Detect screens where we must protect the user from any disruption.
     const isInGameplay = () => {
@@ -5655,1017 +5071,6 @@ boot();
   <div class="chars-filter" id="chars-filter"></div>
   <div class="chars-grid" id="chars-grid"></div>
 </div>
-
-<!-- ════════════════════════════════════════════════════════════════════
-     3D BATTLEFIELD (Three.js) — full visual overhaul. Self-contained,
-     additive module. Reads game state (G/CLASSES/SPIRIT_IMGS) READ-ONLY to
-     render spirit billboards; touches no game logic. Watches #s-battle via
-     MutationObserver and runs its own loop only while that screen is visible.
-     ════════════════════════════════════════════════════════════════════ -->
-<script>
-(function () {
-  'use strict';
-  if (typeof THREE === 'undefined') {
-    console.warn('[bg3d] Three.js not available — 3D battlefield disabled, game unaffected.');
-    return;
-  }
-
-  // ── Config ──────────────────────────────────────────────────────────
-  var ENABLE_SHADOWS = false;        // flip true only if perf allows
-  var MOBILE_BP = 768;
-  var canvas = document.getElementById('bg3d');
-  var battleEl = document.getElementById('s-battle');
-  if (!canvas || !battleEl) return;
-
-  // ── Safe accessors for game state (READ ONLY — never mutate) ─────────
-  function getG()        { try { return G; }           catch (e) { return null; } }
-  function getClasses()  { try { return CLASSES; }     catch (e) { return null; } }
-  function getSpiritImgs(){ try { return SPIRIT_IMGS; } catch (e) { return null; } }
-
-  // ── Module state ─────────────────────────────────────────────────────
-  var renderer, scene, camera, clock;
-  var rafId = null, built = false, active = false;
-  var camAngle = 0;
-  var mobile = window.innerWidth < MOBILE_BP;
-
-  var skyMatList = [];      // ShaderMaterials needing uTime
-  var auroraMat = null, starsMat = null;
-  var floorMat = null, runeMeshes = [], fogMats = [];
-  var debris = null, debrisData = [], debrisDummy = null, DEBRIS_N = 42;
-  var orbitA, orbitB, lightningLight, entryFlash, spotLight;
-  var lightningTimer = 0, nextLightningIn = 4 + Math.random() * 6;
-  var envMap = null, texLoader = null;
-  var boltGroup = null;        // container for pooled lightning LineSegments
-  var boltPool = [];           // pre-allocated bolts (no per-flash geometry churn)
-  var camShake = 0;            // current camera-shake impulse (decays)
-  var introFovT = -1;          // >=0 while the battle-start FOV pull-back is animating
-  var audioCtx = null;         // lazy Web Audio context for thunder
-  // perf: frame counter for throttled updates + adaptive-quality FPS monitor
-  var frameN = 0, basePixelRatio = 1.0;
-  var quality = 'high', fpsFrames = 0, lastFpsCheck = 0;
-  var auroraMesh = null, fogMeshes = [], cloudMeshes = [];
-
-  // Spirit billboards
-  var spiritGroup = null;      // container for all spirit groups + halos
-  var deathBits = [];          // { mesh, vx,vy,vz, life }
-  var billboards = [];         // { group, halo, side, idx, baseY, phase, delay, riseT, risen, flashed, dead, deadT }
-  var battleEpoch = 0;         // invalidates async texture loads across battles
-  var RISE_DUR = 1.2, STAGGER = 0.15;
-
-  function isMobile() { return window.innerWidth < MOBILE_BP; }
-
-  // ── Inline GLSL: simplex noise + fbm (Ashima/Gustavson) ──────────────
-  var NOISE = [
-    'vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}',
-    'vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}',
-    'vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}',
-    'vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}',
-    'float snoise(vec3 v){',
-    '  const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);',
-    '  vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);',
-    '  vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);',
-    '  vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;',
-    '  i=mod289(i);',
-    '  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));',
-    '  float n_=0.142857142857;vec3 ns=n_*D.wyz-D.xzx;',
-    '  vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);',
-    '  vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);',
-    '  vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);',
-    '  vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));',
-    '  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;',
-    '  vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);',
-    '  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));',
-    '  p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;',
-    '  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;',
-    '  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));',
-    '}',
-    'float fbm(vec3 p){float f=0.0;float a=0.5;for(int i=0;i<3;i++){f+=a*snoise(p);p*=2.02;a*=0.5;}return f;}'
-  ].join('\n');
-
-  // ── Canvas-based texture helpers ─────────────────────────────────────
-  function makeStoneCanvas(size) {
-    size = size || 512;
-    var c = document.createElement('canvas'); c.width = c.height = size;
-    var x = c.getContext('2d');
-    x.fillStyle = '#15102a'; x.fillRect(0, 0, size, size);
-    for (var i = 0; i < 9000; i++) {
-      var v = 18 + Math.random() * 40;
-      x.fillStyle = 'rgba(' + (v | 0) + ',' + ((v * 0.8) | 0) + ',' + ((v * 1.2) | 0) + ',0.05)';
-      x.beginPath(); x.arc(Math.random() * size, Math.random() * size, Math.random() * 2.2, 0, 6.283); x.fill();
-    }
-    x.strokeStyle = 'rgba(0,0,0,0.45)'; x.lineWidth = 2;
-    for (var k = 0; k < 26; k++) {
-      x.beginPath();
-      var cx = Math.random() * size, cy = Math.random() * size; x.moveTo(cx, cy);
-      var segs = 3 + (Math.random() * 4 | 0);
-      for (var s = 0; s < segs; s++) { cx += (Math.random() - 0.5) * 120; cy += (Math.random() - 0.5) * 120; x.lineTo(cx, cy); }
-      x.stroke();
-    }
-    return c;
-  }
-
-  function heightToNormal(srcCanvas, strength) {
-    strength = strength || 2.2;
-    var size = srcCanvas.width;
-    var src = srcCanvas.getContext('2d').getImageData(0, 0, size, size).data;
-    var out = document.createElement('canvas'); out.width = out.height = size;
-    var octx = out.getContext('2d'); var dst = octx.createImageData(size, size);
-    function lum(ix, iy) { ix = (ix + size) % size; iy = (iy + size) % size; var i = (iy * size + ix) * 4; return (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255; }
-    for (var y = 0; y < size; y++) for (var xx = 0; xx < size; xx++) {
-      var dx = (lum(xx - 1, y) - lum(xx + 1, y)) * strength;
-      var dy = (lum(xx, y - 1) - lum(xx, y + 1)) * strength;
-      var nz = 1, len = Math.sqrt(dx * dx + dy * dy + nz * nz) || 1, di = (y * size + xx) * 4;
-      dst.data[di] = (dx / len * 0.5 + 0.5) * 255; dst.data[di + 1] = (dy / len * 0.5 + 0.5) * 255;
-      dst.data[di + 2] = (nz / len * 0.5 + 0.5) * 255; dst.data[di + 3] = 255;
-    }
-    octx.putImageData(dst, 0, 0);
-    var tex = new THREE.CanvasTexture(out); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
-  }
-
-  // Arcane runes + concentric ring bands on a transparent canvas (emissive map).
-  function makeRuneCanvas() {
-    var size = 1024, c = document.createElement('canvas'); c.width = c.height = size;
-    var x = c.getContext('2d'); var cx = size / 2, cy = size / 2;
-    x.clearRect(0, 0, size, size);
-    x.lineCap = 'round'; x.shadowBlur = 16;
-    function ring(r, col, w) { x.strokeStyle = col; x.shadowColor = col; x.lineWidth = w; x.beginPath(); x.arc(cx, cy, r, 0, 6.283); x.stroke(); }
-    var teal = 'rgba(61,232,197,0.95)', gold = 'rgba(232,197,106,0.95)';
-    ring(size * 0.46, teal, 4); ring(size * 0.44, teal, 2);
-    ring(size * 0.34, gold, 5); ring(size * 0.20, teal, 4); ring(size * 0.10, gold, 3);
-    // radial ticks between outer rings
-    x.lineWidth = 3; x.strokeStyle = teal; x.shadowColor = teal;
-    for (var i = 0; i < 48; i++) {
-      var a = (i / 48) * 6.283;
-      x.beginPath();
-      x.moveTo(cx + Math.cos(a) * size * 0.34, cy + Math.sin(a) * size * 0.34);
-      x.lineTo(cx + Math.cos(a) * size * 0.40, cy + Math.sin(a) * size * 0.40);
-      x.stroke();
-    }
-    // runic glyphs (arcs + segments) around the gold ring
-    x.strokeStyle = gold; x.shadowColor = gold; x.lineWidth = 4;
-    for (var g = 0; g < 16; g++) {
-      var ga = (g / 16) * 6.283;
-      var gx = cx + Math.cos(ga) * size * 0.27, gy = cy + Math.sin(ga) * size * 0.27;
-      x.save(); x.translate(gx, gy); x.rotate(ga);
-      x.beginPath();
-      x.moveTo(-14, -16); x.lineTo(14, -16); x.lineTo(0, 0); x.lineTo(14, 16); x.moveTo(-14, 16); x.lineTo(0, 0);
-      x.stroke();
-      x.beginPath(); x.arc(0, -22, 6, 0, 6.283); x.stroke();
-      x.restore();
-    }
-    var tex = new THREE.CanvasTexture(c); return tex;
-  }
-
-  function makeHaloTexture() {
-    var size = 256, c = document.createElement('canvas'); c.width = c.height = size;
-    var x = c.getContext('2d');
-    var g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.35, 'rgba(255,255,255,0.45)');
-    g.addColorStop(0.7, 'rgba(255,255,255,0.12)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-    x.fillStyle = g; x.fillRect(0, 0, size, size);
-    return new THREE.CanvasTexture(c);
-  }
-
-  function makeEnvMap() {
-    var pairs = [['#241742', '#0a2030'], ['#0a2030', '#241742'], ['#2a1850', '#0a1a22'],
-                 ['#05060f', '#070a14'], ['#1a0a2e', '#0a2030'], ['#0a2030', '#1a0a2e']];
-    var faces = [];
-    for (var f = 0; f < 6; f++) {
-      var cv = document.createElement('canvas'); cv.width = cv.height = 64;
-      var cx = cv.getContext('2d'); var g = cx.createLinearGradient(0, 0, 0, 64);
-      g.addColorStop(0, pairs[f][0]); g.addColorStop(1, pairs[f][1]);
-      cx.fillStyle = g; cx.fillRect(0, 0, 64, 64); faces.push(cv);
-    }
-    var ct = new THREE.CubeTexture(faces); ct.needsUpdate = true;
-    if ('encoding' in ct) ct.encoding = THREE.sRGBEncoding;
-    return ct;
-  }
-
-  // ── Build ────────────────────────────────────────────────────────────
-  function build() {
-    built = true;
-    mobile = isMobile();
-    texLoader = new THREE.TextureLoader();
-
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
-    // DPR capped at 1.5 — retina (2-3x) doubles/triples GPU work for no visible gain here.
-    basePixelRatio = mobile ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.5);
-    renderer.setPixelRatio(basePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.06;
-    renderer.shadowMap.enabled = false;   // shadows are the biggest GPU cost; off entirely
-
-    scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x100822, 0.012);
-    clock = new THREE.Clock();
-
-    camera = new THREE.PerspectiveCamera(54, window.innerWidth / window.innerHeight, 0.1, 800);
-    camera.position.set(0, 14, 34);
-    camera.lookAt(0, 5, 0);
-
-    envMap = makeEnvMap();
-
-    buildLights();
-    buildBolts();
-    buildSky();
-    if (!mobile) buildAurora();
-    buildStars();
-    buildClouds();
-    buildFloor();
-    buildPillars();
-    buildDebris();
-    buildFog();
-    buildHorizon();
-
-    spiritGroup = new THREE.Group(); scene.add(spiritGroup);
-  }
-
-  function buildLights() {
-    scene.add(new THREE.AmbientLight(0x1a0a2e, 0.3));
-    var dir = new THREE.DirectionalLight(0xcfe0ff, 1.2);
-    dir.position.set(-18, 34, 14);
-    if (ENABLE_SHADOWS) { dir.castShadow = true; dir.shadow.mapSize.set(1024, 1024); }
-    scene.add(dir);
-    orbitA = new THREE.PointLight(0x00ffcc, 2.0, 20, 2); orbitA.position.set(16, 1.5, 0); scene.add(orbitA);
-    orbitB = new THREE.PointLight(0x8800ff, 2.0, 20, 2); orbitB.position.set(-16, 1.5, 0); scene.add(orbitB);
-    lightningLight = new THREE.DirectionalLight(0xdce8ff, 0.0); lightningLight.position.set(8, 50, -24); scene.add(lightningLight);
-    entryFlash = new THREE.PointLight(0xffffff, 0.0, 16, 2); entryFlash.position.set(0, 3, 0); scene.add(entryFlash);
-    // Spotlight above arena center aimed at the floor.
-    spotLight = new THREE.SpotLight(0xffffff, 3.0, 60, 0.34, 0.5, 1.4);
-    spotLight.position.set(0, 30, 0); spotLight.target.position.set(0, 0, 0);
-    scene.add(spotLight); scene.add(spotLight.target);
-    boltGroup = new THREE.Group(); scene.add(boltGroup);
-  }
-
-  function skyShaderMat(opts) {
-    var mat = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uTime: { value: 0 } }, opts.uniforms || {}),
-      vertexShader: 'varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-      fragmentShader: NOISE + '\n' + opts.frag,
-      side: THREE.BackSide, transparent: !!opts.transparent, depthWrite: false, fog: false,
-      blending: opts.blending || THREE.NormalBlending
-    });
-    skyMatList.push(mat);
-    return mat;
-  }
-
-  function buildSky() {
-    var frag = [
-      'varying vec3 vPos; uniform float uTime;',
-      'void main(){',
-      '  vec3 d=normalize(vPos);',
-      '  float h=clamp(d.y*0.5+0.5,0.0,1.0);',
-      '  vec3 top=vec3(0.02,0.012,0.05);',
-      '  vec3 mid=vec3(0.08,0.045,0.16);',
-      '  vec3 hor=vec3(0.04,0.12,0.14);',
-      '  vec3 col=mix(hor,mid,smoothstep(0.0,0.5,h));',
-      '  col=mix(col,top,smoothstep(0.45,1.0,h));',
-      '  float n=fbm(d*2.0+vec3(uTime*0.015,0.0,uTime*0.01));',
-      '  vec3 neb=mix(vec3(0.0,0.22,0.20),vec3(0.22,0.04,0.36),n*0.5+0.5);',
-      '  col+=neb*smoothstep(0.15,0.85,n)*0.10;',
-      '  gl_FragColor=vec4(col,1.0);',
-      '}'
-    ].join('\n');
-    var sky = new THREE.Mesh(new THREE.SphereGeometry(320, 16, 16), skyShaderMat({ frag: frag }));
-    sky.renderOrder = -20; sky.matrixAutoUpdate = false; sky.updateMatrix(); scene.add(sky);
-  }
-
-  function buildAurora() {
-    var frag = [
-      'varying vec3 vPos; uniform float uTime;',
-      'void main(){',
-      '  vec3 d=normalize(vPos);',
-      '  float band=sin(atan(d.z,d.x)*3.0 + uTime*0.25 + fbm(d*3.0+vec3(uTime*0.05))*3.0);',
-      '  float vert=smoothstep(-0.05,0.45,d.y)*smoothstep(0.85,0.30,d.y);',
-      '  float ribbon=smoothstep(0.25,1.0,band)*vert;',
-      '  float mixv=sin(uTime*0.18+atan(d.z,d.x))*0.5+0.5;',
-      '  vec3 c=mix(vec3(0.0,0.9,0.7), vec3(0.45,0.1,1.0), mixv);',
-      '  c=mix(c, vec3(0.1,0.4,1.0), smoothstep(0.4,0.9,band));',
-      '  float a=ribbon*0.45;',
-      '  gl_FragColor=vec4(c*a, a);',
-      '}'
-    ].join('\n');
-    auroraMat = skyShaderMat({ frag: frag, transparent: true, blending: THREE.AdditiveBlending });
-    auroraMesh = new THREE.Mesh(new THREE.SphereGeometry(300, 16, 16), auroraMat);
-    auroraMesh.renderOrder = -18; auroraMesh.matrixAutoUpdate = false; auroraMesh.updateMatrix(); scene.add(auroraMesh);
-  }
-
-  function buildClouds() {
-    var layers = mobile ? 1 : 3;
-    var cfg = [
-      { r: 240, scale: 1.6, speed: 0.012, color: new THREE.Color(0x1a1230), op: 0.55 },
-      { r: 260, scale: 2.6, speed: 0.020, color: new THREE.Color(0x241a3a), op: 0.42 },
-      { r: 280, scale: 3.6, speed: 0.016, color: new THREE.Color(0x12202c), op: 0.36 }
-    ];
-    var frag = [
-      'varying vec3 vPos; uniform float uTime; uniform float uScale; uniform float uSpeed; uniform vec3 uColor; uniform float uOpacity;',
-      'void main(){',
-      '  vec3 d=normalize(vPos);',
-      '  float den=fbm(d*uScale+vec3(uTime*uSpeed,uTime*uSpeed*0.4,uTime*uSpeed*0.2));',
-      '  den=smoothstep(0.0,0.7,den);',
-      '  float a=den*uOpacity*smoothstep(-0.15,0.45,d.y);',
-      '  gl_FragColor=vec4(uColor, a);',
-      '}'
-    ].join('\n');
-    for (var i = 0; i < layers; i++) {
-      var L = cfg[i];
-      var mat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: 0 }, uScale: { value: L.scale }, uSpeed: { value: L.speed }, uColor: { value: L.color }, uOpacity: { value: L.op } },
-        vertexShader: 'varying vec3 vPos; void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-        fragmentShader: NOISE + '\n' + frag,
-        side: THREE.BackSide, transparent: true, depthWrite: false, fog: false
-      });
-      skyMatList.push(mat);
-      var m = new THREE.Mesh(new THREE.SphereGeometry(L.r, 16, 16), mat);
-      m.renderOrder = -10 + i; m.matrixAutoUpdate = false; m.updateMatrix(); cloudMeshes.push(m); scene.add(m);
-    }
-  }
-
-  function buildStars() {
-    var n = mobile ? 300 : 800;
-    var pos = new Float32Array(n * 3), size = new Float32Array(n), phase = new Float32Array(n);
-    for (var i = 0; i < n; i++) {
-      // distribute on a sphere shell, biased to upper hemisphere
-      var u = Math.random(), v = Math.random() * 0.7 + 0.15;
-      var theta = u * 6.283, phi = Math.acos(2 * v - 1);
-      var r = 290;
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = Math.abs(r * Math.cos(phi)) * 0.8 + 10;
-      pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-      size[i] = 1.5 + Math.random() * 3.0;
-      phase[i] = Math.random() * 6.283;
-    }
-    var geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
-    geo.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
-    starsMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 } },
-      vertexShader: [
-        'attribute float aSize; attribute float aPhase; varying float vPhase; uniform float uTime;',
-        'void main(){ vPhase=aPhase; vec4 mv=modelViewMatrix*vec4(position,1.0);',
-        '  gl_PointSize=aSize*(0.7+0.5*sin(uTime*2.0+aPhase)); gl_Position=projectionMatrix*mv; }'
-      ].join('\n'),
-      fragmentShader: [
-        'varying float vPhase; uniform float uTime;',
-        'void main(){ vec2 c=gl_PointCoord-0.5; float d=length(c); if(d>0.5) discard;',
-        '  float a=smoothstep(0.5,0.0,d)*(0.45+0.55*sin(uTime*2.5+vPhase));',
-        '  gl_FragColor=vec4(vec3(0.82,0.86,1.0), a); }'
-      ].join('\n'),
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false
-    });
-    var pts = new THREE.Points(geo, starsMat); pts.renderOrder = -15; scene.add(pts);
-  }
-
-  function buildFloor() {
-    var stone = makeStoneCanvas(512);
-    var map = new THREE.CanvasTexture(stone); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(6, 6);
-    if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
-    var normalMap = heightToNormal(stone, 2.2); normalMap.repeat.set(6, 6);
-    floorMat = new THREE.MeshStandardMaterial({
-      map: map, normalMap: normalMap, normalScale: new THREE.Vector2(0.7, 0.7),
-      roughness: 0.1, metalness: 0.3, color: 0x6f6890,
-      envMap: envMap, envMapIntensity: 0.8,
-      emissive: 0xffffff, emissiveMap: makeRuneCanvas(), emissiveIntensity: 0.5
-    });
-    var floor = new THREE.Mesh(new THREE.PlaneGeometry(180, 180), floorMat);
-    floor.rotation.x = -Math.PI / 2; floor.matrixAutoUpdate = false; floor.updateMatrix();
-    scene.add(floor);
-    runeMeshes.push({ material: floorMat });
-
-    // Wet-stone fake reflection: a faint dark mirror sheet just below the floor.
-    var mirror = new THREE.Mesh(new THREE.PlaneGeometry(180, 180),
-      new THREE.MeshStandardMaterial({ color: 0x05030f, roughness: 0.04, metalness: 1.0, envMap: envMap, envMapIntensity: 1.1, transparent: true, opacity: 0.5 }));
-    mirror.rotation.x = -Math.PI / 2; mirror.position.y = -0.06; mirror.matrixAutoUpdate = false; mirror.updateMatrix(); scene.add(mirror);
-
-    // additive accent rings
-    [[14, 0x3de8c5], [20, 0xe8c56a], [27, 0x8855ff]].forEach(function (r) {
-      var ring = new THREE.Mesh(new THREE.RingGeometry(r[0] * 0.96, r[0], 90),
-        new THREE.MeshBasicMaterial({ color: r[1], transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
-      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; ring.matrixAutoUpdate = false; ring.updateMatrix(); scene.add(ring); runeMeshes.push(ring);
-    });
-  }
-
-  function buildPillars() {
-    var pillarGlowTex = makeHaloTexture();   // reused radial glow for faked base lights
-    var stone = makeStoneCanvas(256);
-    var map = new THREE.CanvasTexture(stone); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1, 3);
-    if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
-    var normalMap = heightToNormal(stone, 1.8); normalMap.repeat.set(1, 3);
-    var mat = new THREE.MeshStandardMaterial({ map: map, normalMap: normalMap, roughness: 0.85, metalness: 0.1, color: 0x4a4566, envMap: envMap, envMapIntensity: 0.4 });
-    var count = 11;
-    for (var i = 0; i < count; i++) {
-      var a = (i / count) * 6.283 + 0.25;
-      var rad = 42 + (i % 3) * 7;
-      var h = 4 + Math.random() * 8;            // varying heights (spec 3-8-ish)
-      var px = Math.cos(a) * rad, pz = Math.sin(a) * rad;
-      var topR = 1.0 + Math.random() * 0.6, botR = 2.0 + Math.random() * 0.6;
-      var p = new THREE.Mesh(new THREE.CylinderGeometry(topR, botR, h, 9, 1), mat);
-      p.position.set(px, h / 2 - 1.5, pz);
-      p.rotation.z = (Math.random() - 0.5) * 0.16; p.rotation.y = Math.random() * 6.283;
-      p.matrixAutoUpdate = false; p.updateMatrix();  // static — no per-frame matrix recalc
-      scene.add(p);
-      // Base glow: faked with a cheap additive plane instead of a real PointLight.
-      // ~11 PointLights would add a per-fragment lighting term to every lit pixel
-      // of the (large) floor/pillars — by far the heaviest cost in the scene.
-      var glowCol = i % 2 ? 0x8b2fff : 0x00e5cc;
-      var glow = new THREE.Mesh(new THREE.PlaneGeometry(7, 7),
-        new THREE.MeshBasicMaterial({ map: pillarGlowTex, color: glowCol, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-      glow.rotation.x = -Math.PI / 2; glow.position.set(px, 0.08, pz);
-      glow.matrixAutoUpdate = false; glow.updateMatrix(); scene.add(glow);
-      // crumbled top chunks
-      for (var c2 = 0; c2 < 2; c2++) {
-        var chunk = new THREE.Mesh(new THREE.BoxGeometry(0.8 + Math.random(), 0.6 + Math.random(), 0.8 + Math.random()), mat);
-        chunk.position.set(px + (Math.random() - 0.5) * 2, h - 1.5 + Math.random() * 1.2, pz + (Math.random() - 0.5) * 2);
-        chunk.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-        chunk.matrixAutoUpdate = false; chunk.updateMatrix();
-        scene.add(chunk);
-      }
-    }
-  }
-
-  function buildDebris() {
-    DEBRIS_N = mobile ? 10 : 20;
-    var geo = new THREE.BoxGeometry(1, 1, 1);
-    var mat = new THREE.MeshStandardMaterial({ color: 0x6a5a8a, roughness: 0.7, metalness: 0.2, emissive: 0x150a2a, emissiveIntensity: 0.5 });
-    debris = new THREE.InstancedMesh(geo, mat, DEBRIS_N);
-    debris.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    debrisDummy = new THREE.Object3D(); debrisData = [];
-    for (var i = 0; i < DEBRIS_N; i++) {
-      var d = { x: (Math.random() - 0.5) * 70, y: Math.random() * 40, z: (Math.random() - 0.5) * 70,
-        s: 0.1 + Math.random() * 0.4, vy: 0.6 + Math.random() * 1.4, rx: (Math.random() - 0.5) * 1.2, ry: (Math.random() - 0.5) * 1.2, rot: Math.random() * 6.283 };
-      debrisData.push(d);
-      debrisDummy.position.set(d.x, d.y, d.z); debrisDummy.scale.setScalar(d.s); debrisDummy.updateMatrix();
-      debris.setMatrixAt(i, debrisDummy.matrix);
-    }
-    scene.add(debris);
-  }
-
-  function buildFog() {
-    var layers = mobile ? 1 : 2;
-    var frag = [
-      'varying vec2 vUv; uniform float uTime; uniform vec3 uColor;',
-      'void main(){',
-      '  vec2 uv=vUv*3.0;',
-      '  float n=fbm(vec3(uv+vec2(uTime*0.03,uTime*0.02), uTime*0.05));',
-      '  float n2=fbm(vec3(uv*1.7-vec2(uTime*0.02,0.0), 5.0));',
-      '  float a=smoothstep(0.1,0.9,(n+n2)*0.5+0.5);',
-      '  float edge=smoothstep(0.0,0.3,vUv.x)*smoothstep(1.0,0.7,vUv.x)*smoothstep(0.0,0.3,vUv.y)*smoothstep(1.0,0.7,vUv.y);',
-      '  gl_FragColor=vec4(uColor, a*edge*0.32);',
-      '}'
-    ].join('\n');
-    for (var i = 0; i < layers; i++) {
-      var mat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: Math.random() * 50 }, uColor: { value: new THREE.Color(i % 2 ? 0x2a5a6a : 0x3a2a5a) } },
-        vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-        fragmentShader: NOISE + '\n' + frag,
-        transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false
-      });
-      fogMats.push(mat);
-      var m = new THREE.Mesh(new THREE.PlaneGeometry(150, 150, 1, 1), mat);
-      m.rotation.x = -Math.PI / 2; m.position.y = 0.6 + i * 1.4; m.renderOrder = 2;
-      m.matrixAutoUpdate = false; m.updateMatrix(); fogMeshes.push(m); scene.add(m);
-    }
-  }
-
-  function buildHorizon() {
-    // distant dark ruin/mountain silhouette: instanced angular prisms ringed far out
-    var n = 26;
-    var geo = new THREE.BoxGeometry(1, 1, 1);
-    var mat = new THREE.MeshBasicMaterial({ color: 0x080510, fog: true });
-    var im = new THREE.InstancedMesh(geo, mat, n);
-    var dm = new THREE.Object3D();
-    for (var i = 0; i < n; i++) {
-      var a = (i / n) * 6.283;
-      var rad = 110 + Math.random() * 25;
-      var w = 8 + Math.random() * 16, h = 18 + Math.random() * 46, dpt = 8 + Math.random() * 14;
-      dm.position.set(Math.cos(a) * rad, h / 2 - 6, Math.sin(a) * rad);
-      dm.rotation.y = a + (Math.random() - 0.5) * 0.5;
-      dm.scale.set(w, h, dpt); dm.updateMatrix(); im.setMatrixAt(i, dm.matrix);
-    }
-    im.matrixAutoUpdate = false; im.updateMatrix(); scene.add(im);
-  }
-
-  // ── Spirit billboards ────────────────────────────────────────────────
-  function clearSpirits() {
-    if (!spiritGroup) return;
-    for (var i = spiritGroup.children.length - 1; i >= 0; i--) {
-      var ch = spiritGroup.children[i];
-      ch.traverse(function (o) {
-        if (o.geometry) o.geometry.dispose();
-        if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
-      });
-      spiritGroup.remove(ch);
-    }
-    billboards = [];
-  }
-
-  function spiritTexture(name, mat) {
-    // Try Spirits/<name>.jpg first; fall back to base64 SPIRIT_IMGS; then a flat tint.
-    var epoch = battleEpoch;
-    function apply(tex) {
-      if (epoch !== battleEpoch) { if (tex && tex.dispose) tex.dispose(); return; }
-      if ('encoding' in tex) tex.encoding = THREE.sRGBEncoding;
-      tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-      mat.map = tex; mat.color.setHex(0xffffff); mat.needsUpdate = true;
-    }
-    texLoader.load('Spirits/' + name + '.jpg', apply, undefined, function () {
-      var imgs = getSpiritImgs();
-      if (imgs && imgs[name]) { texLoader.load(imgs[name], apply, undefined, function () {}); }
-    });
-  }
-
-  function buildSpiritsFor(side, team, z) {
-    if (!team || !team.length) return;
-    var classes = getClasses() || {};
-    var n = team.length, spacing = 4.2;
-    var haloTex = makeHaloTexture();
-    for (var i = 0; i < n; i++) {
-      var c = team[i];
-      if (!c) continue;
-      var clsCol = (classes[c.cls] && classes[c.cls].color) ? new THREE.Color(classes[c.cls].color) : new THREE.Color(0x9b8fd0);
-      var x = (i - (n - 1) / 2) * spacing;
-
-      var group = new THREE.Group();
-      group.position.set(x, -2, z);   // start buried
-
-      // glowing rim behind portrait (class color)
-      var rim = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 4.2),
-        new THREE.MeshBasicMaterial({ color: clsCol, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
-      rim.position.z = -0.05; group.add(rim);
-
-      // portrait plane (unlit so it's always clearly visible)
-      var pmat = new THREE.MeshBasicMaterial({ color: clsCol.clone().multiplyScalar(0.5), transparent: true, side: THREE.DoubleSide });
-      var portrait = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.7), pmat);
-      portrait.position.y = 0; group.add(portrait);
-      spiritTexture(c.name, pmat);
-
-      spiritGroup.add(group);
-
-      // floor glow halo
-      var halo = new THREE.Mesh(new THREE.PlaneGeometry(6, 6),
-        new THREE.MeshBasicMaterial({ map: haloTex, color: clsCol, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
-      halo.rotation.x = -Math.PI / 2; halo.position.set(x, 0.05, z); spiritGroup.add(halo);
-
-      var sideIdx = (side === 'enemy' ? 0 : 1);
-      billboards.push({
-        group: group, halo: halo, side: side, idx: i,
-        baseY: 2.0, phase: Math.random() * 6.283,
-        delay: i * STAGGER + sideIdx * (n * STAGGER + 0.2),
-        riseStart: clock.getElapsedTime(), risen: false, flashed: false, dead: false, deadT: 0
-      });
-    }
-  }
-
-  function rebuildSpirits() {
-    if (!built) return;
-    battleEpoch++;
-    clearSpirits();
-    var g = getG();
-    if (!g || !g.playerTeam || !g.enemyTeam) return false;
-    buildSpiritsFor('enemy', g.enemyTeam, -9);
-    buildSpiritsFor('player', g.playerTeam, 9);
-    // Kick off the dramatic camera pull-back for the battle intro.
-    introFovT = 0;
-    return true;
-  }
-
-  function easeOutBack(t) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
-
-  function updateSpirits(t, dt) {
-    var g = getG();
-    for (var i = 0; i < billboards.length; i++) {
-      var b = billboards[i];
-      // rise / idle
-      var local = t - b.riseStart - b.delay;
-      if (local < 0) { b.group.position.y = -2; }
-      else if (local < RISE_DUR) {
-        if (!b.flashed) { b.flashed = true; entryFlash.position.set(b.group.position.x, 3, b.halo.position.z); entryFlash.intensity = 3.0; }
-        var tt = local / RISE_DUR;
-        b.group.position.y = -2 + (b.baseY + 2) * easeOutBack(tt);
-        b.halo.material.opacity = 0.6 * tt;
-      } else {
-        if (!b.risen) { b.risen = true; }
-        b.group.position.y = b.baseY + Math.sin(t * Math.PI + b.phase) * 0.08;
-        b.halo.material.opacity = 0.45 + Math.sin(t * 1.6 + b.phase) * 0.12;
-      }
-      // billboard toward camera (Y axis only)
-      b.group.lookAt(camera.position.x, b.group.position.y, b.group.position.z);
-
-      // death sync (read-only)
-      var team = g ? g[b.side + 'Team'] : null;
-      var c = team && team[b.idx];
-      if (c && c.dead && !b.dead) {
-        b.dead = true;
-        // fragment burst + red halo flash + camera shake on the moment of death
-        spawnDeathBits(b.group.position.x, b.baseY, b.halo.position.z, 0xff4466);
-        if (b.halo.material) { b.halo.material.color.setHex(0xff2244); }
-        camShake = Math.max(camShake, 0.02);
-      }
-      if (b.dead) {
-        b.deadT = Math.min(1, b.deadT + dt * 1.6);
-        b.group.children.forEach(function (m) { if (m.material) m.material.opacity = Math.max(0.12, (m.material.opacity || 1) * (1 - b.deadT) ); });
-        b.group.rotation.x = -b.deadT * 0.5; // tip backward
-        b.halo.material.opacity *= (1 - b.deadT);
-        b.group.position.y = Math.max(0.4, b.baseY - b.deadT * 1.2);
-      }
-    }
-  }
-
-  // Pre-allocate a small pool of LineSegments bolts at init. On a flash we only
-  // rewrite the existing position buffer (no geometry creation/disposal mid-frame,
-  // which was causing GC stutter with the old per-flash TubeGeometry).
-  var BOLT_MAX_VERTS = 96;   // segment endpoints (pairs); main path + branches
-  function buildBolts() {
-    for (var i = 0; i < 3; i++) {
-      var geo = new THREE.BufferGeometry();
-      var positions = new Float32Array(BOLT_MAX_VERTS * 3);
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geo.setDrawRange(0, 0);
-      var matr = new THREE.LineBasicMaterial({ color: 0xeaf2ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-      var seg = new THREE.LineSegments(geo, matr);
-      seg.visible = false; seg.frustumCulled = false; seg.matrixAutoUpdate = false;
-      boltGroup.add(seg);
-      boltPool.push({ seg: seg, positions: positions, attr: geo.getAttribute('position'), geo: geo, life: 0, max: 0.26, active: false });
-    }
-  }
-
-  // Fill a pooled bolt's buffer with a jagged main path + 2-3 branches (segment pairs).
-  function fillBolt(b) {
-    var pos = b.positions, v = 0, cap = pos.length - 6;
-    function seg(ax, ay, az, bx, by, bz) { if (v > cap) return; pos[v++] = ax; pos[v++] = ay; pos[v++] = az; pos[v++] = bx; pos[v++] = by; pos[v++] = bz; }
-    var steps = 9, topY = 70;
-    var x = (Math.random() - 0.5) * 60, z = (Math.random() - 0.5) * 40 - 20, y = topY;
-    var midX = [], midY = [], midZ = []; // remember points for branch origins
-    var px2 = x, py2 = y, pz2 = z;
-    midX.push(x); midY.push(y); midZ.push(z);
-    for (var i = 1; i <= steps; i++) {
-      var nx = px2 + (Math.random() - 0.5) * 9, nz = pz2 + (Math.random() - 0.5) * 9, ny = topY * (1 - i / steps);
-      seg(px2, py2, pz2, nx, ny, nz);
-      midX.push(nx); midY.push(ny); midZ.push(nz);
-      px2 = nx; py2 = ny; pz2 = nz;
-    }
-    var branches = 2 + (Math.random() * 2 | 0);
-    for (var bb = 0; bb < branches; bb++) {
-      var oi = 2 + (Math.random() * (midX.length - 4) | 0);
-      var bx = midX[oi], by = midY[oi], bz = midZ[oi], oy = by, prx = bx, pry = by, prz = bz;
-      for (var s = 0; s < 4; s++) { bx += (Math.random() - 0.5) * 10; bz += (Math.random() - 0.5) * 10; by -= oy / 5; var cy = Math.max(0, by); seg(prx, pry, prz, bx, cy, bz); prx = bx; pry = cy; prz = bz; }
-    }
-    b.attr.needsUpdate = true;
-    b.geo.setDrawRange(0, v / 3);
-    b.seg.visible = true; b.seg.material.opacity = 1; b.life = 0; b.active = true;
-  }
-
-  function playThunder() {
-    try {
-      if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; audioCtx = new AC(); }
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      var dur = 0.6 + Math.random() * 0.5;
-      var sr = audioCtx.sampleRate, len = Math.floor(sr * dur);
-      var buf = audioCtx.createBuffer(1, len, sr), data = buf.getChannelData(0);
-      for (var i = 0; i < len; i++) { var env = Math.pow(1 - i / len, 2); data[i] = (Math.random() * 2 - 1) * env; }
-      var src = audioCtx.createBufferSource(); src.buffer = buf;
-      var lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
-      var g = audioCtx.createGain(); g.gain.value = 0.18;
-      src.connect(lp); lp.connect(g); g.connect(audioCtx.destination); src.start();
-    } catch (e) {}
-  }
-
-  function triggerLightning() {
-    // Light spike + camera micro-shake + (high quality) pooled bolt.
-    lightningLight.intensity = 2.6 + Math.random() * 1.4;
-    camShake = Math.max(camShake, 0.012);
-    if (Math.random() < 0.5) playThunder();
-    if (mobile || quality === 'low' || !boltGroup) return; // light flash only
-    for (var i = 0; i < boltPool.length; i++) { if (!boltPool[i].active) { fillBolt(boltPool[i]); break; } }
-  }
-
-  // Emit ~15 fragment shards from a dying spirit; they fly out, fall, and fade.
-  function spawnDeathBits(x, y, z, color) {
-    var n = mobile ? 8 : 15;
-    for (var i = 0; i < n; i++) {
-      var g = new THREE.PlaneGeometry(0.18 + Math.random() * 0.22, 0.18 + Math.random() * 0.22);
-      var m = new THREE.MeshBasicMaterial({ color: color || 0xff4466, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
-      var mesh = new THREE.Mesh(g, m);
-      mesh.position.set(x, y, z);
-      scene.add(mesh);
-      deathBits.push({ mesh: mesh, vx: (Math.random() - 0.5) * 7, vy: 3 + Math.random() * 5, vz: (Math.random() - 0.5) * 7, life: 0, max: 1.0, rot: (Math.random() - 0.5) * 6 });
-    }
-  }
-
-  function updateBoltsAndBits(dt) {
-    // lightning bolt fade — pooled, just toggle opacity/visibility (no alloc/dispose)
-    for (var i = 0; i < boltPool.length; i++) {
-      var bo = boltPool[i];
-      if (!bo.active) continue;
-      bo.life += dt;
-      bo.seg.material.opacity = Math.max(0, 1 - bo.life / bo.max);
-      if (bo.life >= bo.max) { bo.active = false; bo.seg.visible = false; }
-    }
-    // death fragments: gravity + fade + dispose
-    for (var f = deathBits.length - 1; f >= 0; f--) {
-      var p = deathBits[f]; p.life += dt;
-      p.vy -= 12 * dt;
-      p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
-      p.mesh.rotation.z += p.rot * dt; p.mesh.rotation.x += p.rot * 0.6 * dt;
-      p.mesh.material.opacity = Math.max(0, 0.95 * (1 - p.life / p.max));
-      if (p.life >= p.max || p.mesh.position.y < -2) {
-        scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); deathBits.splice(f, 1);
-      }
-    }
-  }
-
-  // Adaptive quality: progressively shed the most expensive elements if the
-  // GPU can't keep up. Never upgrades back (avoids oscillation mid-battle).
-  function setQuality(q) {
-    if (q === quality) return;
-    quality = q;
-    if (q === 'medium') {
-      // drop pixel ratio, hide aurora, halve floating debris
-      if (renderer) { renderer.setPixelRatio(Math.min(basePixelRatio, 1.0)); renderer.setSize(window.innerWidth, window.innerHeight); }
-      if (auroraMesh) auroraMesh.visible = false;
-      if (debris) debris.count = Math.max(1, Math.floor(DEBRIS_N / 2));
-    } else if (q === 'low') {
-      // also drop the sky/cloud shaders' workload: hide extra cloud layers + fog
-      if (renderer) { renderer.setPixelRatio(Math.min(basePixelRatio, 0.85)); renderer.setSize(window.innerWidth, window.innerHeight); }
-      for (var i = 1; i < cloudMeshes.length; i++) cloudMeshes[i].visible = false;
-      for (var f = 0; f < fogMeshes.length; f++) fogMeshes[f].visible = false;
-    }
-    console.info('[bg3d] adaptive quality →', q);
-  }
-
-  function onResize() {
-    if (!renderer) return;
-    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  }
-
-  function animate() {
-    rafId = requestAnimationFrame(animate);
-    var dt = Math.min(clock.getDelta(), 0.05), t = clock.getElapsedTime();
-    frameN++;
-
-    // Adaptive quality: sample FPS every 2s, step down if struggling.
-    fpsFrames++;
-    var nowMs = (t * 1000) | 0;
-    if (nowMs - lastFpsCheck > 2000) {
-      var fps = fpsFrames / ((nowMs - lastFpsCheck) / 1000);
-      fpsFrames = 0; lastFpsCheck = nowMs;
-      if (fps < 30 && quality === 'high') setQuality('medium');
-      else if (fps < 20 && quality === 'medium') setQuality('low');
-    }
-
-    // camera slow orbit + vertical bob
-    camAngle += dt * 0.018;
-    var r = 34;
-    camera.position.x = Math.sin(camAngle) * r; camera.position.z = Math.cos(camAngle) * r;
-    camera.position.y = 13 + Math.sin(t * 0.25) * 1.6; camera.lookAt(0, 5, 0);
-
-    // Battle-start FOV pull-back: zoom from 38 → 54 over ~2s (dramatic reveal).
-    if (introFovT >= 0) {
-      introFovT += dt;
-      var fv = Math.min(1, introFovT / 2.0);
-      var eased = 1 - Math.pow(1 - fv, 3);
-      camera.fov = 38 + (54 - 38) * eased;
-      camera.updateProjectionMatrix();
-      if (fv >= 1) introFovT = -1;
-    }
-
-    // Camera micro-shake (lightning / death impulses), decays each frame.
-    if (camShake > 0.0001) {
-      camera.position.x += (Math.random() - 0.5) * camShake * 20;
-      camera.position.y += (Math.random() - 0.5) * camShake * 20;
-      camera.rotation.z += (Math.random() - 0.5) * camShake;
-      camShake = Math.max(0, camShake - dt * 0.06);
-    }
-
-    // Cloud/sky shader time — throttle to every 2nd frame (clouds drift slowly).
-    if (frameN % 2 === 0) {
-      for (var s = 0; s < skyMatList.length; s++) skyMatList[s].uniforms.uTime.value = t;
-      if (auroraMat) auroraMat.uniforms.uTime.value = t;
-    }
-    // Stars twinkle — every 4th frame is imperceptible.
-    if (starsMat && frameN % 4 === 0) starsMat.uniforms.uTime.value = t;
-    // Fog UV scroll — every 2nd frame (advance by accumulated 2-frame dt).
-    if (frameN % 2 === 0) for (var f = 0; f < fogMats.length; f++) fogMats[f].uniforms.uTime.value += dt * 2;
-
-    // Floor rune pulse — every 3rd frame (changes slowly).
-    if (frameN % 3 === 0) {
-      if (floorMat) floorMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.094) * 0.5 + 0.5) * 0.7;
-      for (var u = 1; u < runeMeshes.length; u++) { if (runeMeshes[u].material) runeMeshes[u].material.opacity = 0.3 + Math.sin(t * 1.4 + u) * 0.18 + 0.18; }
-    }
-
-    // Orbiting colored lights — every 2nd frame (0.4 rad/s, lag invisible).
-    if (frameN % 2 === 0) {
-      var oa = t * 0.4;
-      orbitA.position.set(Math.cos(oa) * 16, 1.5, Math.sin(oa) * 16);
-      orbitB.position.set(Math.cos(oa + Math.PI) * 16, 1.5, Math.sin(oa + Math.PI) * 16);
-    }
-
-    // debris drift
-    if (debris) {
-      for (var i = 0; i < DEBRIS_N; i++) {
-        var d = debrisData[i]; d.y += d.vy * dt; d.rot += dt;
-        if (d.y > 42) { d.y = -2; d.x = (Math.random() - 0.5) * 70; d.z = (Math.random() - 0.5) * 70; }
-        debrisDummy.position.set(d.x, d.y, d.z);
-        debrisDummy.rotation.set(d.rot * d.rx, d.rot * d.ry, d.rot * 0.5);
-        debrisDummy.scale.setScalar(d.s); debrisDummy.updateMatrix();
-        debris.setMatrixAt(i, debrisDummy.matrix);
-      }
-      debris.instanceMatrix.needsUpdate = true;
-    }
-
-    // spirits
-    updateSpirits(t, dt);
-
-    // lightning
-    lightningTimer += dt;
-    if (lightningTimer > nextLightningIn) { triggerLightning(); lightningTimer = 0; nextLightningIn = 4 + Math.random() * 6; }
-    if (lightningLight && lightningLight.intensity > 0) lightningLight.intensity = Math.max(0, lightningLight.intensity - dt * 7.0);
-    if (entryFlash && entryFlash.intensity > 0) entryFlash.intensity = Math.max(0, entryFlash.intensity - dt * 9.0);
-
-    // lightning bolt geometry fade + death fragment physics
-    updateBoltsAndBits(dt);
-
-    renderer.render(scene, camera);
-  }
-
-  // ── Lifecycle ────────────────────────────────────────────────────────
-  function start() {
-    if (!built) { try { build(); } catch (e) { console.warn('[bg3d] build failed — disabling.', e); return; } }
-    canvas.style.display = 'block';
-    document.body.classList.add('battle-3d-active');
-    active = true;
-    // (Re)build spirits for the current battle. Retry once shortly in case G
-    // isn't populated the very instant the screen is revealed.
-    if (!rebuildSpirits()) setTimeout(function () { if (active) rebuildSpirits(); }, 120);
-    // Re-baseline the adaptive-FPS monitor (clock.start() below resets elapsed time).
-    lastFpsCheck = 0; fpsFrames = 0;
-    if (rafId === null) { if (clock) clock.start(); animate(); }
-  }
-
-  function stop() {
-    active = false;
-    canvas.style.display = 'none';
-    document.body.classList.remove('battle-3d-active');
-    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-    // Reset transient FX so nothing lingers between battles. Pooled bolts are
-    // reused (not disposed) — just hide/deactivate them.
-    try {
-      for (var i = 0; i < boltPool.length; i++) { boltPool[i].active = false; boltPool[i].seg.visible = false; boltPool[i].seg.material.opacity = 0; }
-      for (var k = 0; k < deathBits.length; k++) { scene.remove(deathBits[k].mesh); deathBits[k].mesh.geometry.dispose(); deathBits[k].mesh.material.dispose(); }
-      deathBits = [];
-      camShake = 0; introFovT = -1;
-    } catch (e) {}
-  }
-
-  var obs = new MutationObserver(function () {
-    var visible = !battleEl.classList.contains('hidden');
-    if (visible && !active) start();
-    else if (!visible && active) stop();
-  });
-  obs.observe(battleEl, { attributes: true, attributeFilter: ['class'] });
-  if (!battleEl.classList.contains('hidden')) start();
-
-  window.addEventListener('resize', function () { mobile = isMobile(); onResize(); });
-})();
-</script>
-
-<script>
-/* ════════════════════════════════════════════════════════════════════
-   MICRO-INTERACTIONS — purely additive, guarded, zero game-logic changes.
-   Ripple on buttons, selective magnetic buttons, title particles,
-   victory confetti / defeat vignette. Never touches IDs, data attrs, or
-   any function the game depends on.
-   ════════════════════════════════════════════════════════════════════ */
-(function () {
-  'use strict';
-  var BTN_SEL = '.title-btn,.btn-end,.result-btn,.auth-btn,.draft-confirm,.filter-btn,.btn-back,.btn-forfeit,.btn-cancel,.case-buy,.shop-buy,.home-tile,.result-btn';
-
-  // ── Click ripple (delegated; works for dynamically rendered buttons too) ──
-  document.addEventListener('mousedown', function (e) {
-    try {
-      var el = e.target.closest && e.target.closest(BTN_SEL);
-      if (!el) return;
-      var rect = el.getBoundingClientRect();
-      var span = document.createElement('span');
-      span.className = 'btn-ripple';
-      span.style.left = (e.clientX - rect.left) + 'px';
-      span.style.top = (e.clientY - rect.top) + 'px';
-      // ensure host can clip the ripple
-      var cs = getComputedStyle(el);
-      if (cs.position === 'static') el.style.position = 'relative';
-      el.appendChild(span);
-      setTimeout(function () { span.remove(); }, 620);
-    } catch (err) {}
-  }, true);
-
-  // ── Magnetic pull (subtle) on big tiles/buttons. Folds the intended
-  //    hover lift into the transform so CSS hover isn't lost. ──
-  var MAG_SEL = '.home-tile,.title-btn,.result-btn';
-  function bindMagnet(el) {
-    el.addEventListener('mousemove', function (e) {
-      var r = el.getBoundingClientRect();
-      var dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
-      var dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-      var nx = Math.max(-1, Math.min(1, dx)) * 5;
-      var ny = Math.max(-1, Math.min(1, dy)) * 5;
-      el.style.transform = 'translate(' + nx + 'px,' + (ny - 4) + 'px) scale(1.03)';
-    });
-    el.addEventListener('mouseleave', function () { el.style.transform = ''; });
-  }
-  function rebindMagnets() {
-    try {
-      document.querySelectorAll(MAG_SEL).forEach(function (el) {
-        if (el._magBound) return; el._magBound = true; bindMagnet(el);
-      });
-    } catch (e) {}
-  }
-  rebindMagnets();
-  // tiles render once at load; re-scan a couple times in case of late DOM
-  setTimeout(rebindMagnets, 800);
-  setTimeout(rebindMagnets, 2500);
-
-  // ── Title ambient particles ──
-  function seedTitleParticles() {
-    var title = document.getElementById('s-title');
-    if (!title || title.querySelector('.title-particles')) return;
-    var box = document.createElement('div');
-    box.className = 'title-particles';
-    for (var i = 0; i < 25; i++) {
-      var p = document.createElement('i');
-      p.style.left = Math.random() * 100 + '%';
-      p.style.setProperty('--drx', ((Math.random() - 0.5) * 60) + 'px');
-      p.style.animationDuration = (6 + Math.random() * 8) + 's';
-      p.style.animationDelay = (Math.random() * 8) + 's';
-      var sz = 2 + Math.random() * 4;
-      p.style.width = sz + 'px'; p.style.height = sz + 'px';
-      box.appendChild(p);
-    }
-    title.insertBefore(box, title.firstChild);
-  }
-  seedTitleParticles();
-
-  // ── Result screen: victory confetti / defeat vignette ──
-  var resultEl = document.getElementById('s-result');
-  var vignette = null;
-  function ensureVignette() {
-    if (vignette) return vignette;
-    vignette = document.createElement('div'); vignette.id = 'result-defeat-vignette';
-    document.body.appendChild(vignette); return vignette;
-  }
-  function burstConfetti() {
-    var colors = ['#c9a84c', '#f0d080', '#00e5cc', '#8b2fff', '#ff6ec7', '#ffffff'];
-    for (var i = 0; i < 70; i++) {
-      var c = document.createElement('div');
-      c.className = 'confetti-piece';
-      c.style.background = colors[(Math.random() * colors.length) | 0];
-      c.style.setProperty('--cx', ((Math.random() - 0.5) * 900) + 'px');
-      c.style.setProperty('--cy', (260 + Math.random() * 460) + 'px');
-      c.style.setProperty('--cr', ((Math.random() - 0.5) * 1200) + 'deg');
-      c.style.animationDelay = (Math.random() * 0.25) + 's';
-      c.style.left = (48 + Math.random() * 4) + '%';
-      document.body.appendChild(c);
-      (function (el) { setTimeout(function () { el.remove(); }, 2100); })(c);
-    }
-  }
-  if (resultEl) {
-    var resObs = new MutationObserver(function () {
-      var visible = !resultEl.classList.contains('hidden');
-      var v = ensureVignette();
-      if (!visible) { v.style.opacity = '0'; return; }
-      var titleEl = document.getElementById('result-title');
-      var win = titleEl && /win/.test(titleEl.className);
-      if (win) { v.style.opacity = '0'; setTimeout(burstConfetti, 120); }
-      else { v.style.opacity = '1'; }
-    });
-    resObs.observe(resultEl, { attributes: true, attributeFilter: ['class'] });
-  }
-
-  // ── Generic number ticker for any element opting in with class .ticker ──
-  if (typeof gsap !== 'undefined') {
-    try {
-      var tObs = new MutationObserver(function (muts) {
-        muts.forEach(function (m) {
-          var el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
-          if (!el || !el.classList || !el.classList.contains('ticker')) return;
-          var to = parseFloat((el.textContent || '').replace(/[^0-9.\-]/g, ''));
-          if (isNaN(to)) return;
-          var from = el._tickVal || 0; el._tickVal = to;
-          if (from === to) return;
-          var o = { v: from };
-          gsap.to(o, { v: to, duration: 0.9, ease: 'power2.out', onUpdate: function () { el.textContent = Math.round(o.v); } });
-        });
-      });
-      document.querySelectorAll('.ticker').forEach(function (el) {
-        tObs.observe(el, { childList: true, characterData: true, subtree: true });
-      });
-    } catch (e) {}
-  }
-})();
-</script>
 
 </body>
 </html>
