@@ -1926,6 +1926,30 @@ const NEW_CARDS = {
 // shadowleech also gets the iconic Soul Drain (separate so it can be a signature promo)
 NEW_CARDS.shadowleech.push(mkAdv('Soul Drain','🩸',3,'damage',70,'random_any','Drain a random foe for 70 and heal 50% of the damage.',null,{lifesteal:0.5}));
 
+// ── Cost review ──────────────────────────────────────────────────────
+// Costing principle (5 energy max, +3/turn):
+//   0  = throwaway / 30-dmg chip cards
+//   1  = pure self-utility (taunt/stealth/rage/echo-less buffs), no-damage debuffs,
+//        cheap cleanses, front-bonus shields
+//   2  = control (silence/heal-block), echo, strong combos, lifesteal nukes, big heals
+//   3  = high-damage + rider
+//   4  = pierce premium
+// A self-only effect should never cost more than a comparable damage card.
+const NEW_CARD_COSTS = {
+  'Taunt Cry':1, 'Vanish':1, 'Mist Cloak':1, "Berserker's Oath":1, 'War Cry':1,
+  'Spectral Bomb':1, 'Nullify':1, 'Purify':1, 'Hex of Frailty':1, 'Enfeeble':1,
+  'Sapping Sands':1, 'Mirror Echo':2, 'Resonant Pulse':2, 'Death Pact':2, 'Soul Drain':2,
+  // (Bastion Call, Unstable Core, Silence Ward, Ink Gag, Dread Curse, Entropy Hex,
+  //  Mending Wave, Renewal, Venom Strike, Toxic Spew, Rending Blow/Thorns, Devour,
+  //  Burrow Strike, Assassin's Mark, Wall of Iron, Iron Hide, Rampage, Frenzy Dash,
+  //  Bloodletter keep their defined costs.)
+};
+(function recostNewCards() {
+  for (const sid in NEW_CARDS) for (const card of NEW_CARDS[sid]) {
+    if (NEW_CARD_COSTS[card.name] != null) card.cost = NEW_CARD_COSTS[card.name];
+  }
+})();
+
 // Add every new card into its spirit's POOL (unlockable + drawn by enemy AI).
 (function placeNewCards() {
   for (const sid in NEW_CARDS) {
