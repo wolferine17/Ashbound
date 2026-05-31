@@ -684,8 +684,11 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 @keyframes confettiFall { to{ transform:translate(var(--cx,0), var(--cy,140px)) rotate(var(--cr,540deg)); opacity:0; } }
 
 /* ── Glassmorphism applied to existing panels ─────────────── */
+/* NOTE: .deck-counter / .battle-log intentionally excluded — they sit over the
+   animated 3D canvas, where backdrop-filter blur is very expensive. They use a
+   solid semi-transparent background instead (visually ~identical). */
 .auth-card, .home-tile, .col-card, .char-card, .mp-panel, .modal,
-.roster-card, .home-stat, .deck-counter, .lb-table, .profile-card,
+.roster-card, .home-stat, .lb-table, .profile-card,
 .shop-card, .emblem-card, .case-card {
   background: var(--glass-bg) !important;
   backdrop-filter: blur(18px) saturate(180%);
@@ -693,6 +696,10 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
   border: 1px solid rgba(106,47,255,0.25);
   box-shadow: var(--glass-shadow);
 }
+/* GPU compositing hint for the elements that actually animate on hover. */
+.card, .home-tile, .title-btn, .btn-end, .result-btn, .auth-btn { will-change: transform; }
+/* Deck counter over the 3D scene: solid translucent fill, no blur. */
+.deck-counter { background: rgba(20,10,46,0.7) !important; border:1px solid rgba(106,47,255,0.3); }
 .auth-card, .mp-panel, .modal { border-radius: 18px; }
 
 /* ── Animated conic border glow for hero panels & hovered tiles ── */
@@ -800,7 +807,7 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 .card-cost { background: radial-gradient(circle at 38% 32%, var(--violet), #2d0a66); color:#fff; box-shadow:0 0 8px var(--purple-glow); border:1px solid rgba(255,255,255,0.2); }
 .card-name { font-family: var(--font-d); color: var(--gold-bright); }
 /* battle log entries slide in */
-.battle-log { background: linear-gradient(135deg, rgba(8,4,20,0.7), rgba(16,8,40,0.55)); backdrop-filter: blur(10px); border:1px solid rgba(106,47,255,0.25); }
+.battle-log { background: linear-gradient(135deg, rgba(8,4,20,0.82), rgba(16,8,40,0.72)); border:1px solid rgba(106,47,255,0.25); }
 .battle-log p { animation: fadeSlideUp 0.3s var(--ease); }
 
 /* ── Result screen ────────────────────────────────────────── */
@@ -5393,11 +5400,15 @@ boot();
   var orbitA, orbitB, lightningLight, entryFlash, spotLight;
   var lightningTimer = 0, nextLightningIn = 4 + Math.random() * 6;
   var envMap = null, texLoader = null;
-  var boltGroup = null;        // active lightning bolt meshes (disposed after fade)
-  var bolts = [];              // { meshes:[], life, max }
+  var boltGroup = null;        // container for pooled lightning LineSegments
+  var boltPool = [];           // pre-allocated bolts (no per-flash geometry churn)
   var camShake = 0;            // current camera-shake impulse (decays)
   var introFovT = -1;          // >=0 while the battle-start FOV pull-back is animating
   var audioCtx = null;         // lazy Web Audio context for thunder
+  // perf: frame counter for throttled updates + adaptive-quality FPS monitor
+  var frameN = 0, basePixelRatio = 1.0;
+  var quality = 'high', fpsFrames = 0, lastFpsCheck = 0;
+  var auroraMesh = null, fogMeshes = [], cloudMeshes = [];
 
   // Spirit billboards
   var spiritGroup = null;      // container for all spirit groups + halos
@@ -5541,13 +5552,15 @@ boot();
     mobile = isMobile();
     texLoader = new THREE.TextureLoader();
 
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !mobile, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(mobile ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
+    // DPR capped at 1.5 — retina (2-3x) doubles/triples GPU work for no visible gain here.
+    basePixelRatio = mobile ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.5);
+    renderer.setPixelRatio(basePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.06;
-    if (ENABLE_SHADOWS) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
+    renderer.shadowMap.enabled = false;   // shadows are the biggest GPU cost; off entirely
 
     scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x100822, 0.012);
@@ -5560,6 +5573,7 @@ boot();
     envMap = makeEnvMap();
 
     buildLights();
+    buildBolts();
     buildSky();
     if (!mobile) buildAurora();
     buildStars();
@@ -5619,8 +5633,8 @@ boot();
       '  gl_FragColor=vec4(col,1.0);',
       '}'
     ].join('\n');
-    var sky = new THREE.Mesh(new THREE.SphereGeometry(320, 32, 20), skyShaderMat({ frag: frag }));
-    sky.renderOrder = -20; scene.add(sky);
+    var sky = new THREE.Mesh(new THREE.SphereGeometry(320, 16, 16), skyShaderMat({ frag: frag }));
+    sky.renderOrder = -20; sky.matrixAutoUpdate = false; sky.updateMatrix(); scene.add(sky);
   }
 
   function buildAurora() {
@@ -5639,8 +5653,8 @@ boot();
       '}'
     ].join('\n');
     auroraMat = skyShaderMat({ frag: frag, transparent: true, blending: THREE.AdditiveBlending });
-    var aur = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 20), auroraMat);
-    aur.renderOrder = -18; scene.add(aur);
+    auroraMesh = new THREE.Mesh(new THREE.SphereGeometry(300, 16, 16), auroraMat);
+    auroraMesh.renderOrder = -18; auroraMesh.matrixAutoUpdate = false; auroraMesh.updateMatrix(); scene.add(auroraMesh);
   }
 
   function buildClouds() {
@@ -5669,8 +5683,8 @@ boot();
         side: THREE.BackSide, transparent: true, depthWrite: false, fog: false
       });
       skyMatList.push(mat);
-      var m = new THREE.Mesh(new THREE.SphereGeometry(L.r, 32, 20), mat);
-      m.renderOrder = -10 + i; scene.add(m);
+      var m = new THREE.Mesh(new THREE.SphereGeometry(L.r, 16, 16), mat);
+      m.renderOrder = -10 + i; m.matrixAutoUpdate = false; m.updateMatrix(); cloudMeshes.push(m); scene.add(m);
     }
   }
 
@@ -5722,24 +5736,25 @@ boot();
       emissive: 0xffffff, emissiveMap: makeRuneCanvas(), emissiveIntensity: 0.5
     });
     var floor = new THREE.Mesh(new THREE.PlaneGeometry(180, 180), floorMat);
-    floor.rotation.x = -Math.PI / 2; if (ENABLE_SHADOWS) floor.receiveShadow = true;
+    floor.rotation.x = -Math.PI / 2; floor.matrixAutoUpdate = false; floor.updateMatrix();
     scene.add(floor);
     runeMeshes.push({ material: floorMat });
 
     // Wet-stone fake reflection: a faint dark mirror sheet just below the floor.
     var mirror = new THREE.Mesh(new THREE.PlaneGeometry(180, 180),
       new THREE.MeshStandardMaterial({ color: 0x05030f, roughness: 0.04, metalness: 1.0, envMap: envMap, envMapIntensity: 1.1, transparent: true, opacity: 0.5 }));
-    mirror.rotation.x = -Math.PI / 2; mirror.position.y = -0.06; scene.add(mirror);
+    mirror.rotation.x = -Math.PI / 2; mirror.position.y = -0.06; mirror.matrixAutoUpdate = false; mirror.updateMatrix(); scene.add(mirror);
 
     // additive accent rings
     [[14, 0x3de8c5], [20, 0xe8c56a], [27, 0x8855ff]].forEach(function (r) {
       var ring = new THREE.Mesh(new THREE.RingGeometry(r[0] * 0.96, r[0], 90),
         new THREE.MeshBasicMaterial({ color: r[1], transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
-      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; scene.add(ring); runeMeshes.push(ring);
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; ring.matrixAutoUpdate = false; ring.updateMatrix(); scene.add(ring); runeMeshes.push(ring);
     });
   }
 
   function buildPillars() {
+    var pillarGlowTex = makeHaloTexture();   // reused radial glow for faked base lights
     var stone = makeStoneCanvas(256);
     var map = new THREE.CanvasTexture(stone); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1, 3);
     if ('encoding' in map) map.encoding = THREE.sRGBEncoding;
@@ -5755,25 +5770,29 @@ boot();
       var p = new THREE.Mesh(new THREE.CylinderGeometry(topR, botR, h, 9, 1), mat);
       p.position.set(px, h / 2 - 1.5, pz);
       p.rotation.z = (Math.random() - 0.5) * 0.16; p.rotation.y = Math.random() * 6.283;
-      if (ENABLE_SHADOWS) p.castShadow = true;
+      p.matrixAutoUpdate = false; p.updateMatrix();  // static — no per-frame matrix recalc
       scene.add(p);
-      // base point light, alternating teal / violet (skip half on mobile for perf)
-      if (!mobile || i % 2 === 0) {
-        var pl = new THREE.PointLight(i % 2 ? 0x8b2fff : 0x00e5cc, 1.5, 6, 2);
-        pl.position.set(px, 0.6, pz); scene.add(pl);
-      }
+      // Base glow: faked with a cheap additive plane instead of a real PointLight.
+      // ~11 PointLights would add a per-fragment lighting term to every lit pixel
+      // of the (large) floor/pillars — by far the heaviest cost in the scene.
+      var glowCol = i % 2 ? 0x8b2fff : 0x00e5cc;
+      var glow = new THREE.Mesh(new THREE.PlaneGeometry(7, 7),
+        new THREE.MeshBasicMaterial({ map: pillarGlowTex, color: glowCol, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      glow.rotation.x = -Math.PI / 2; glow.position.set(px, 0.08, pz);
+      glow.matrixAutoUpdate = false; glow.updateMatrix(); scene.add(glow);
       // crumbled top chunks
       for (var c2 = 0; c2 < 2; c2++) {
         var chunk = new THREE.Mesh(new THREE.BoxGeometry(0.8 + Math.random(), 0.6 + Math.random(), 0.8 + Math.random()), mat);
         chunk.position.set(px + (Math.random() - 0.5) * 2, h - 1.5 + Math.random() * 1.2, pz + (Math.random() - 0.5) * 2);
         chunk.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        chunk.matrixAutoUpdate = false; chunk.updateMatrix();
         scene.add(chunk);
       }
     }
   }
 
   function buildDebris() {
-    DEBRIS_N = mobile ? Math.round(42 * 0.4) : 42;
+    DEBRIS_N = mobile ? 10 : 20;
     var geo = new THREE.BoxGeometry(1, 1, 1);
     var mat = new THREE.MeshStandardMaterial({ color: 0x6a5a8a, roughness: 0.7, metalness: 0.2, emissive: 0x150a2a, emissiveIntensity: 0.5 });
     debris = new THREE.InstancedMesh(geo, mat, DEBRIS_N);
@@ -5790,7 +5809,7 @@ boot();
   }
 
   function buildFog() {
-    var layers = mobile ? 2 : 4;
+    var layers = mobile ? 1 : 2;
     var frag = [
       'varying vec2 vUv; uniform float uTime; uniform vec3 uColor;',
       'void main(){',
@@ -5810,8 +5829,9 @@ boot();
         transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false
       });
       fogMats.push(mat);
-      var m = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), mat);
-      m.rotation.x = -Math.PI / 2; m.position.y = 0.6 + i * 1.4; m.renderOrder = 2; scene.add(m);
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(150, 150, 1, 1), mat);
+      m.rotation.x = -Math.PI / 2; m.position.y = 0.6 + i * 1.4; m.renderOrder = 2;
+      m.matrixAutoUpdate = false; m.updateMatrix(); fogMeshes.push(m); scene.add(m);
     }
   }
 
@@ -5830,7 +5850,7 @@ boot();
       dm.rotation.y = a + (Math.random() - 0.5) * 0.5;
       dm.scale.set(w, h, dpt); dm.updateMatrix(); im.setMatrixAt(i, dm.matrix);
     }
-    scene.add(im);
+    im.matrixAutoUpdate = false; im.updateMatrix(); scene.add(im);
   }
 
   // ── Spirit billboards ────────────────────────────────────────────────
@@ -5959,23 +5979,48 @@ boot();
     }
   }
 
-  // Build a jagged path from a high sky point down to the ground with random offsets.
-  function makeBoltPath(x0, z0) {
-    var pts = [], steps = 9, topY = 70, x = x0, z = z0;
-    for (var i = 0; i <= steps; i++) {
-      var f = i / steps;
-      var y = topY * (1 - f);
-      pts.push(new THREE.Vector3(x, y, z));
-      x += (Math.random() - 0.5) * 9; z += (Math.random() - 0.5) * 9;
+  // Pre-allocate a small pool of LineSegments bolts at init. On a flash we only
+  // rewrite the existing position buffer (no geometry creation/disposal mid-frame,
+  // which was causing GC stutter with the old per-flash TubeGeometry).
+  var BOLT_MAX_VERTS = 96;   // segment endpoints (pairs); main path + branches
+  function buildBolts() {
+    for (var i = 0; i < 3; i++) {
+      var geo = new THREE.BufferGeometry();
+      var positions = new Float32Array(BOLT_MAX_VERTS * 3);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setDrawRange(0, 0);
+      var matr = new THREE.LineBasicMaterial({ color: 0xeaf2ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+      var seg = new THREE.LineSegments(geo, matr);
+      seg.visible = false; seg.frustumCulled = false; seg.matrixAutoUpdate = false;
+      boltGroup.add(seg);
+      boltPool.push({ seg: seg, positions: positions, attr: geo.getAttribute('position'), geo: geo, life: 0, max: 0.26, active: false });
     }
-    return pts;
   }
 
-  function makeBoltMesh(pts, radius) {
-    var curve = new THREE.CatmullRomCurve3(pts);
-    var geo = new THREE.TubeGeometry(curve, pts.length * 3, radius, 5, false);
-    var mat = new THREE.MeshBasicMaterial({ color: 0xeaf2ff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-    return new THREE.Mesh(geo, mat);
+  // Fill a pooled bolt's buffer with a jagged main path + 2-3 branches (segment pairs).
+  function fillBolt(b) {
+    var pos = b.positions, v = 0, cap = pos.length - 6;
+    function seg(ax, ay, az, bx, by, bz) { if (v > cap) return; pos[v++] = ax; pos[v++] = ay; pos[v++] = az; pos[v++] = bx; pos[v++] = by; pos[v++] = bz; }
+    var steps = 9, topY = 70;
+    var x = (Math.random() - 0.5) * 60, z = (Math.random() - 0.5) * 40 - 20, y = topY;
+    var midX = [], midY = [], midZ = []; // remember points for branch origins
+    var px2 = x, py2 = y, pz2 = z;
+    midX.push(x); midY.push(y); midZ.push(z);
+    for (var i = 1; i <= steps; i++) {
+      var nx = px2 + (Math.random() - 0.5) * 9, nz = pz2 + (Math.random() - 0.5) * 9, ny = topY * (1 - i / steps);
+      seg(px2, py2, pz2, nx, ny, nz);
+      midX.push(nx); midY.push(ny); midZ.push(nz);
+      px2 = nx; py2 = ny; pz2 = nz;
+    }
+    var branches = 2 + (Math.random() * 2 | 0);
+    for (var bb = 0; bb < branches; bb++) {
+      var oi = 2 + (Math.random() * (midX.length - 4) | 0);
+      var bx = midX[oi], by = midY[oi], bz = midZ[oi], oy = by, prx = bx, pry = by, prz = bz;
+      for (var s = 0; s < 4; s++) { bx += (Math.random() - 0.5) * 10; bz += (Math.random() - 0.5) * 10; by -= oy / 5; var cy = Math.max(0, by); seg(prx, pry, prz, bx, cy, bz); prx = bx; pry = cy; prz = bz; }
+    }
+    b.attr.needsUpdate = true;
+    b.geo.setDrawRange(0, v / 3);
+    b.seg.visible = true; b.seg.material.opacity = 1; b.life = 0; b.active = true;
   }
 
   function playThunder() {
@@ -5994,24 +6039,12 @@ boot();
   }
 
   function triggerLightning() {
-    // Light spike + camera micro-shake + (high quality) actual bolt geometry.
+    // Light spike + camera micro-shake + (high quality) pooled bolt.
     lightningLight.intensity = 2.6 + Math.random() * 1.4;
     camShake = Math.max(camShake, 0.012);
     if (Math.random() < 0.5) playThunder();
-    if (mobile || !boltGroup) return; // low quality: light flash only
-    var x0 = (Math.random() - 0.5) * 60, z0 = (Math.random() - 0.5) * 40 - 20;
-    var main = makeBoltPath(x0, z0);
-    var meshes = [makeBoltMesh(main, 0.18)];
-    boltGroup.add(meshes[0]);
-    // 2-3 sub-branches off random midpoints
-    var branches = 2 + (Math.random() * 2 | 0);
-    for (var b = 0; b < branches; b++) {
-      var origin = main[2 + (Math.random() * (main.length - 4) | 0)];
-      var bp = [origin.clone()], bx = origin.x, bz = origin.z, by = origin.y;
-      for (var s = 0; s < 4; s++) { bx += (Math.random() - 0.5) * 10; bz += (Math.random() - 0.5) * 10; by -= origin.y / 5; bp.push(new THREE.Vector3(bx, Math.max(0, by), bz)); }
-      var bm = makeBoltMesh(bp, 0.08); boltGroup.add(bm); meshes.push(bm);
-    }
-    bolts.push({ meshes: meshes, life: 0, max: 0.26 });
+    if (mobile || quality === 'low' || !boltGroup) return; // light flash only
+    for (var i = 0; i < boltPool.length; i++) { if (!boltPool[i].active) { fillBolt(boltPool[i]); break; } }
   }
 
   // Emit ~15 fragment shards from a dying spirit; they fly out, fall, and fade.
@@ -6028,15 +6061,13 @@ boot();
   }
 
   function updateBoltsAndBits(dt) {
-    // lightning bolt fade + dispose
-    for (var i = bolts.length - 1; i >= 0; i--) {
-      var bo = bolts[i]; bo.life += dt;
-      var k = 1 - bo.life / bo.max;
-      for (var j = 0; j < bo.meshes.length; j++) bo.meshes[j].material.opacity = Math.max(0, k);
-      if (bo.life >= bo.max) {
-        for (var d = 0; d < bo.meshes.length; d++) { boltGroup.remove(bo.meshes[d]); bo.meshes[d].geometry.dispose(); bo.meshes[d].material.dispose(); }
-        bolts.splice(i, 1);
-      }
+    // lightning bolt fade — pooled, just toggle opacity/visibility (no alloc/dispose)
+    for (var i = 0; i < boltPool.length; i++) {
+      var bo = boltPool[i];
+      if (!bo.active) continue;
+      bo.life += dt;
+      bo.seg.material.opacity = Math.max(0, 1 - bo.life / bo.max);
+      if (bo.life >= bo.max) { bo.active = false; bo.seg.visible = false; }
     }
     // death fragments: gravity + fade + dispose
     for (var f = deathBits.length - 1; f >= 0; f--) {
@@ -6051,6 +6082,25 @@ boot();
     }
   }
 
+  // Adaptive quality: progressively shed the most expensive elements if the
+  // GPU can't keep up. Never upgrades back (avoids oscillation mid-battle).
+  function setQuality(q) {
+    if (q === quality) return;
+    quality = q;
+    if (q === 'medium') {
+      // drop pixel ratio, hide aurora, halve floating debris
+      if (renderer) { renderer.setPixelRatio(Math.min(basePixelRatio, 1.0)); renderer.setSize(window.innerWidth, window.innerHeight); }
+      if (auroraMesh) auroraMesh.visible = false;
+      if (debris) debris.count = Math.max(1, Math.floor(DEBRIS_N / 2));
+    } else if (q === 'low') {
+      // also drop the sky/cloud shaders' workload: hide extra cloud layers + fog
+      if (renderer) { renderer.setPixelRatio(Math.min(basePixelRatio, 0.85)); renderer.setSize(window.innerWidth, window.innerHeight); }
+      for (var i = 1; i < cloudMeshes.length; i++) cloudMeshes[i].visible = false;
+      for (var f = 0; f < fogMeshes.length; f++) fogMeshes[f].visible = false;
+    }
+    console.info('[bg3d] adaptive quality →', q);
+  }
+
   function onResize() {
     if (!renderer) return;
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
@@ -6060,6 +6110,17 @@ boot();
   function animate() {
     rafId = requestAnimationFrame(animate);
     var dt = Math.min(clock.getDelta(), 0.05), t = clock.getElapsedTime();
+    frameN++;
+
+    // Adaptive quality: sample FPS every 2s, step down if struggling.
+    fpsFrames++;
+    var nowMs = (t * 1000) | 0;
+    if (nowMs - lastFpsCheck > 2000) {
+      var fps = fpsFrames / ((nowMs - lastFpsCheck) / 1000);
+      fpsFrames = 0; lastFpsCheck = nowMs;
+      if (fps < 30 && quality === 'high') setQuality('medium');
+      else if (fps < 20 && quality === 'medium') setQuality('low');
+    }
 
     // camera slow orbit + vertical bob
     camAngle += dt * 0.018;
@@ -6085,20 +6146,28 @@ boot();
       camShake = Math.max(0, camShake - dt * 0.06);
     }
 
-    // shader time uniforms
-    for (var s = 0; s < skyMatList.length; s++) skyMatList[s].uniforms.uTime.value = t;
-    if (auroraMat) auroraMat.uniforms.uTime.value = t;
-    if (starsMat) starsMat.uniforms.uTime.value = t;
-    for (var f = 0; f < fogMats.length; f++) fogMats[f].uniforms.uTime.value += dt;
+    // Cloud/sky shader time — throttle to every 2nd frame (clouds drift slowly).
+    if (frameN % 2 === 0) {
+      for (var s = 0; s < skyMatList.length; s++) skyMatList[s].uniforms.uTime.value = t;
+      if (auroraMat) auroraMat.uniforms.uTime.value = t;
+    }
+    // Stars twinkle — every 4th frame is imperceptible.
+    if (starsMat && frameN % 4 === 0) starsMat.uniforms.uTime.value = t;
+    // Fog UV scroll — every 2nd frame (advance by accumulated 2-frame dt).
+    if (frameN % 2 === 0) for (var f = 0; f < fogMats.length; f++) fogMats[f].uniforms.uTime.value += dt * 2;
 
-    // floor rune pulse 0.3 .. 1.0
-    if (floorMat) floorMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.094) * 0.5 + 0.5) * 0.7;
-    for (var u = 1; u < runeMeshes.length; u++) { if (runeMeshes[u].material) runeMeshes[u].material.opacity = 0.3 + Math.sin(t * 1.4 + u) * 0.18 + 0.18; }
+    // Floor rune pulse — every 3rd frame (changes slowly).
+    if (frameN % 3 === 0) {
+      if (floorMat) floorMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.094) * 0.5 + 0.5) * 0.7;
+      for (var u = 1; u < runeMeshes.length; u++) { if (runeMeshes[u].material) runeMeshes[u].material.opacity = 0.3 + Math.sin(t * 1.4 + u) * 0.18 + 0.18; }
+    }
 
-    // orbiting colored lights
-    var oa = t * 0.4;
-    orbitA.position.set(Math.cos(oa) * 16, 1.5, Math.sin(oa) * 16);
-    orbitB.position.set(Math.cos(oa + Math.PI) * 16, 1.5, Math.sin(oa + Math.PI) * 16);
+    // Orbiting colored lights — every 2nd frame (0.4 rad/s, lag invisible).
+    if (frameN % 2 === 0) {
+      var oa = t * 0.4;
+      orbitA.position.set(Math.cos(oa) * 16, 1.5, Math.sin(oa) * 16);
+      orbitB.position.set(Math.cos(oa + Math.PI) * 16, 1.5, Math.sin(oa + Math.PI) * 16);
+    }
 
     // debris drift
     if (debris) {
@@ -6137,6 +6206,8 @@ boot();
     // (Re)build spirits for the current battle. Retry once shortly in case G
     // isn't populated the very instant the screen is revealed.
     if (!rebuildSpirits()) setTimeout(function () { if (active) rebuildSpirits(); }, 120);
+    // Re-baseline the adaptive-FPS monitor (clock.start() below resets elapsed time).
+    lastFpsCheck = 0; fpsFrames = 0;
     if (rafId === null) { if (clock) clock.start(); animate(); }
   }
 
@@ -6145,12 +6216,10 @@ boot();
     canvas.style.display = 'none';
     document.body.classList.remove('battle-3d-active');
     if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-    // Dispose transient FX so nothing lingers between battles.
+    // Reset transient FX so nothing lingers between battles. Pooled bolts are
+    // reused (not disposed) — just hide/deactivate them.
     try {
-      for (var i = 0; i < bolts.length; i++) for (var j = 0; j < bolts[i].meshes.length; j++) {
-        boltGroup.remove(bolts[i].meshes[j]); bolts[i].meshes[j].geometry.dispose(); bolts[i].meshes[j].material.dispose();
-      }
-      bolts = [];
+      for (var i = 0; i < boltPool.length; i++) { boltPool[i].active = false; boltPool[i].seg.visible = false; boltPool[i].seg.material.opacity = 0; }
       for (var k = 0; k < deathBits.length; k++) { scene.remove(deathBits[k].mesh); deathBits[k].mesh.geometry.dispose(); deathBits[k].mesh.material.dispose(); }
       deathBits = [];
       camShake = 0; introFovT = -1;
