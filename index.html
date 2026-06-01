@@ -817,6 +817,7 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 }
 .c-hp-bar { height:9px; border-radius:5px; background:rgba(5,2,15,0.7); box-shadow: inset 0 0 4px rgba(0,0,0,0.8); border:1px solid rgba(106,47,255,0.25); }
 .c-hp-fill { box-shadow: 0 0 10px currentColor; }
+.c-hp-num { font-size:10px; font-weight:700; color:#e8e2f4; text-align:center; margin-top:2px; letter-spacing:0.3px; text-shadow:0 1px 2px rgba(0,0,0,0.8); font-variant-numeric:tabular-nums; }
 .c-name { font-family: var(--font-d); }
 .battle-label, .turn-label { font-family: var(--font-d); }
 .turn-label { font-size:14px; padding:4px 16px; border-radius:50px; }
@@ -3771,6 +3772,7 @@ function renderRow(id, team, isEnemy) {
       ${statusBadgesHtml(c)}
       <div class="c-portrait-wrap">${portraitHtml}${backShield}</div>
       <div class="c-hp-bar"><div class="c-hp-fill" style="width:${Math.round(pct*100)}%;background:${hpColor(pct)};"></div></div>
+      <div class="c-hp-num">${Math.max(0, Math.round(c.hp))}/${c.maxHp}</div>
       <div class="c-name">${c.name}</div>
       ${c.shield > 0 ? `<div style="font-size:10px;color:#a0c8ff;">🛡${c.shield}/${200}</div>` : ''}
     `;
@@ -3982,7 +3984,69 @@ function cardMechDesc(card, owner) {
     };
     base += ` + ${eLabels[card.effect.type] || ''}`;
   }
+  // ── Phase 2 mechanic lines (status effects this card applies) ──
+  if (card.lifesteal)               base += ` + 🩸 Lifesteal <b>${Math.round(card.lifesteal*100)}%</b>`;
+  if (card.special === 'cleanse')   base = `Removes ALL debuffs from a chosen ally`;
+  if (card.special === 'wallOfIron')base += ` + 🧱 <b>+30</b> bonus Shield if in the Frontline`;
+  if (card.special === 'rampage')   base += ` + 💢 also applies Vulnerable if you're Raging`;
+  if (card.apply && card.apply.length) {
+    const aLabel = {
+      taunt:'🛑 Taunt', poison:'☠ Poison', bleed:'🩸 Bleed', vulnerable:'💔 Vulnerable',
+      weak:'🔻 Weak', silence:'🔇 Silence', stealth:'👻 Stealth', rage:'😡 Rage',
+      regen:'💚 Regen', heal_block:'🚫 Heal Block', echo:'🔁 Echo', volatile:'💣 Volatile'
+    };
+    for (const a of card.apply) {
+      const who = a.to === 'self' ? 'self' : (a.to === 'allEnemies' ? 'all enemies' : (a.to === 'allAllies' ? 'all allies' : 'target'));
+      base += `<br><span style="color:#c9c2e0;">${aLabel[a.k]||a.k}${a.n?` <b>${a.n}</b>`:''} → ${who}</span>`;
+    }
+  }
+  // Beginner glossary: plain-English explanation of every ability on this card.
+  const gloss = abilityGlossary(card);
+  if (gloss.length) {
+    base += `<div style="margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.12);font-size:11px;color:#9a92b5;line-height:1.5;">`
+          + gloss.map(g => `<div>${g}</div>`).join('') + `</div>`;
+  }
   return base;
+}
+
+// Returns short plain-English explanations for each special ability on a card,
+// so new players understand what each keyword does. Only includes what's present.
+function abilityGlossary(card) {
+  const out = [];
+  const seen = {};
+  const add = (key, text) => { if (!seen[key]) { seen[key] = 1; out.push(text); } };
+  // legacy effect
+  if (card.effect) {
+    const t = card.effect.type;
+    if (t === 'burn')   add('burn',   '🔥 <b>Burn</b>: deals damage each turn.');
+    if (t === 'stun')   add('stun',   '⚡ <b>Stun</b>: target skips its next turn.');
+    if (t === 'weaken') add('weaken', '💀 <b>Weaken</b>: lowers the target\'s attack.');
+    if (t === 'slow')   add('slow',   '🐢 <b>Slow</b>: lowers the target\'s damage output.');
+    if (t === 'buff_atk') add('buff_atk', '💪 <b>Attack Up</b>: boosts your damage briefly.');
+  }
+  // new status applies
+  if (card.apply) for (const a of card.apply) {
+    const g = {
+      taunt:      '🛑 <b>Taunt</b>: enemies are forced to attack this spirit.',
+      poison:     '☠ <b>Poison</b>: loses HP each turn (stacks fade over time).',
+      bleed:      '🩸 <b>Bleed</b>: takes damage whenever it plays a card.',
+      vulnerable: '💔 <b>Vulnerable</b>: takes extra damage from all hits.',
+      weak:       '🔻 <b>Weak</b>: deals less damage with its attacks.',
+      silence:    '🔇 <b>Silence</b>: can only use basic attacks (no buffs/heals).',
+      stealth:    '👻 <b>Stealth</b>: can\'t be directly targeted for a few turns.',
+      rage:       '😡 <b>Rage</b>: builds up; at 10 it erupts into Fury (big damage).',
+      regen:      '💚 <b>Regen</b>: heals some HP each turn.',
+      heal_block: '🚫 <b>Heal Block</b>: cannot be healed for a few turns.',
+      echo:       '🔁 <b>Echo</b>: the next card played resolves twice.',
+      volatile:   '💣 <b>Volatile</b>: explodes for damage to everyone when it dies.',
+    };
+    if (g[a.k]) add(a.k, g[a.k]);
+  }
+  if (card.lifesteal) add('lifesteal', '🩸 <b>Lifesteal</b>: heals the attacker for part of the damage dealt.');
+  if (card.pierce || card.targeting === 'pierce') add('pierce', '⚔ <b>Pierce</b>: can strike ANY enemy, ignoring the frontline.');
+  if (card.special === 'cleanse')   add('cleanse', '✨ <b>Cleanse</b>: removes all negative effects from an ally.');
+  if (card.special === 'wallOfIron')add('wall', '🧱 <b>Wall</b>: extra shield while in the frontline.');
+  return out;
 }
 
 function cardMechText(card) {
