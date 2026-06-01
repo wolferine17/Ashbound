@@ -885,6 +885,8 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 .combatant.pos-back  .spirit-portrait, .combatant.pos-back  .c-emoji { box-shadow:0 0 0 2px rgba(90,150,232,0.45), 0 0 10px rgba(60,90,160,0.25); filter:brightness(0.92); }
 .c-portrait-wrap { position:relative; display:inline-flex; }
 .pos-shield-ic { position:absolute; bottom:-4px; right:-4px; font-size:13px; filter:drop-shadow(0 1px 2px #000); opacity:0.85; }
+/* Path boss portrait: larger + ominous red frame so it reads as the threat. */
+.spirit-portrait.boss-portrait { width:96px !important; height:96px !important; box-shadow:0 0 0 2px #e8554f, 0 0 22px rgba(232,85,79,0.6) !important; }
 /* Targeting selection states. */
 .combatant.targetable { cursor:pointer; }
 .combatant.targetable .spirit-portrait, .combatant.targetable .c-emoji { animation:targetPulse 1s ease-in-out infinite; }
@@ -3758,9 +3760,11 @@ function renderRow(id, team, isEnemy) {
     div.setAttribute('data-idx', i);
     div.id = 'comb-' + (isEnemy?'e':'p') + i;
 
-    const portraitHtml = (c.img && SPIRIT_IMGS[c.name])
-      ? `<img src="${SPIRIT_IMGS[c.name]}" class="spirit-portrait" alt="${c.name}">`
-      : `<div class="c-emoji">${c.emoji}</div>`;
+    const portraitHtml = c.portrait
+      ? `<img src="${c.portrait}" class="spirit-portrait boss-portrait" alt="${c.name}" onerror="this.outerHTML='<div class=&quot;c-emoji&quot;>${c.emoji}</div>'">`
+      : (c.img && SPIRIT_IMGS[c.name])
+        ? `<img src="${SPIRIT_IMGS[c.name]}" class="spirit-portrait" alt="${c.name}">`
+        : `<div class="c-emoji">${c.emoji}</div>`;
     const backShield = (c.position === 'back' && !c.dead) ? `<div class="pos-shield-ic" title="Backline — protected">🛡</div>` : '';
     div.innerHTML = `
       <div class="c-status">${statusIcons}</div>
@@ -4291,6 +4295,7 @@ function normalizePathEnemy(spec) {
       parts: JSON.parse(JSON.stringify(spec.parts && spec.parts.length ? spec.parts : base.parts)),
       pool: spec.parts || base.parts,
       _isBoss: !!spec._isBoss,
+      portrait: spec.portrait || null,   // boss artwork path (Bosses/<name>.jpg)
     };
   }
   // a real spirit id passed inside an object

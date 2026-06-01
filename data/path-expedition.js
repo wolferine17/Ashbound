@@ -18,6 +18,8 @@
 (function () {
   'use strict';
 
+  const MAP_VERSION = 2;   // bump when generateMap layout changes (invalidates old saves)
+
   function P() { return window.__pathBridge || {}; }
   function toast(m) { const f = P().toast; if (f) try { f(m); } catch (e) {} }
   function spirits() { return P().getSpirits ? P().getSpirits() : []; }
@@ -45,7 +47,7 @@
   const BOSSES = {
     pyrelord: {
       id: 'boss_pyrelord', name: 'Ignarok, the Pyre Lord', subtitle: 'Flame · burns the unworthy',
-      emoji: '🔥', cls: 'flame', hp: 1500, atk: 105, _isBoss: true,
+      emoji: '🔥', cls: 'flame', hp: 1500, atk: 105, _isBoss: true, portrait: 'Bosses/Ignarok.jpg',
       parts: [
         bossCard('Cinder Crash', '🔥', 2, 'damage', 130, 'select_front', 'A molten fist.'),
         bossCard('Eruption', '💥', 3, 'aoe', 85, 'all', 'Scorches all foes.', [A('bleed', 1, 'allEnemies')]),
@@ -61,7 +63,7 @@
     },
     tideturl: {
       id: 'boss_tidetyrant', name: 'Voraxis, the Tide Tyrant', subtitle: 'Water · drowns all hope',
-      emoji: '🌊', cls: 'water', hp: 1700, atk: 92, _isBoss: true,
+      emoji: '🌊', cls: 'water', hp: 1700, atk: 92, _isBoss: true, portrait: 'Bosses/Voraxis.jpg',
       parts: [
         bossCard('Crushing Wave', '🌊', 2, 'damage', 120, 'select_front', 'A wall of water.', [A('weak', 2, 'target')]),
         bossCard('Maelstrom', '🌀', 3, 'aoe', 80, 'all', 'A spinning vortex.'),
@@ -75,7 +77,7 @@
     },
     stonecolossus: {
       id: 'boss_stonecolossus', name: 'Gravemaw, the Stone Colossus', subtitle: 'Earth · immovable, unending',
-      emoji: '🗿', cls: 'earth', hp: 2200, atk: 85, _isBoss: true,
+      emoji: '🗿', cls: 'earth', hp: 2200, atk: 85, _isBoss: true, portrait: 'Bosses/Gravemaw.jpg',
       parts: [
         bossCard('Boulder Throw', '🪨', 2, 'damage', 125, 'select_front', 'Hurls a boulder.'),
         bossCard('Quake', '💢', 3, 'aoe', 75, 'all', 'The ground splits.', [A('weak', 1, 'allEnemies')]),
@@ -89,7 +91,7 @@
     },
     voidmaw: {
       id: 'boss_voidmaw', name: 'Nul\'Khareth, the Void Maw', subtitle: 'Void · devours light',
-      emoji: '🕳', cls: 'void', hp: 1800, atk: 100, _isBoss: true,
+      emoji: '🕳', cls: 'void', hp: 1800, atk: 100, _isBoss: true, portrait: "Bosses/Nul'Khareth.jpg",
       parts: [
         bossCard('Soul Rend', '🌑', 2, 'damage', 110, 'pierce', 'Strikes any foe.', [A('heal_block', 2, 'target')], { pierce: true }),
         bossCard('Entropy', '🌀', 3, 'aoe', 70, 'all', 'Unmakes all.', [A('vulnerable', 1, 'allEnemies')]),
@@ -108,7 +110,7 @@
     },
     stormcrown: {
       id: 'boss_stormcrown', name: 'Aetheron, the Storm Crown', subtitle: 'Storm · the final tempest',
-      emoji: '⚡', cls: 'storm', hp: 2600, atk: 110, _isBoss: true,
+      emoji: '⚡', cls: 'storm', hp: 2600, atk: 110, _isBoss: true, portrait: 'Bosses/Aetheron.jpg',
       parts: [
         bossCard('Thunderstrike', '⚡', 2, 'damage', 135, 'select_front', 'A bolt from the crown.'),
         bossCard('Tempest', '🌪', 3, 'aoe', 95, 'all', 'The sky falls.', [A('silence', 1, 'allEnemies')]),
@@ -143,20 +145,24 @@
   function generateMap(seed) {
     const rng = makeRng(seed);
     const nodes = [];
+    // Deliberate per-tier layout (5 nodes per tier, position 0-4):
+    //   0: ease-in battle
+    //   1: battle, or a reward cache
+    //   2: battle, or an elite (tier 1+)
+    //   3: GUARANTEED REST — a full heal right before the boss (fixes the
+    //      "no rest before the boss / wasted early rests" problem)
+    //   4: boss
     for (let i = 0; i < 25; i++) {
       const depth = i + 1;
-      const isBoss = depth % 5 === 0;
-      let type;
-      if (isBoss) type = 'boss';
-      else {
-        // weight: more battles early, reward/rest sprinkled, elites mid/late
-        const roll = rng();
-        if (roll < 0.46) type = 'battle';
-        else if (roll < 0.66) type = (depth >= 6 ? 'elite' : 'battle');
-        else if (roll < 0.82) type = 'rest';
-        else type = 'reward';
-      }
       const tier = Math.floor(i / 5);            // 0..4
+      const pos = i % 5;                          // position within the tier
+      let type;
+      if (pos === 4) type = 'boss';
+      else if (pos === 3) type = 'rest';          // always rest before the boss
+      else if (pos === 0) type = 'battle';        // ease-in
+      else if (pos === 1) type = (rng() < 0.4 ? 'reward' : 'battle');
+      else /* pos === 2 */ type = (tier >= 1 && rng() < 0.5) ? 'elite' : 'battle';
+      const isBoss = type === 'boss';
       const node = {
         idx: i, depth, type, tier,
         cleared: false,
@@ -179,18 +185,29 @@
     }
     return nodes;
   }
+  // Each tier (0-4) culminates in a boss of one element; the approach battles
+  // are themed to that same element so the run feels like a coherent domain.
+  const TIER_ELEMENT = ['flame', 'water', 'earth', 'void', 'storm'];   // matches BOSS_ORDER classes
+  const ELEMENT_REGION = {
+    flame:  { domain: 'the Emberwastes', battle: ['Ember Steps', 'Cinder Vale', 'Ashen Hollow', 'Magma Ridge', 'Scorched Pass'], elite: ['Pyre Shrine', 'Flame Vanguard', 'Cinder Altar'] },
+    water:  { domain: 'the Drowned Reach', battle: ['Mist Gully', 'Tide Crossing', 'Sunken Span', 'Coral Deep', 'Salt Marsh'], elite: ['Tidal Shrine', 'Abyssal Guard', 'Drowned Altar'] },
+    earth:  { domain: 'the Stoneholds', battle: ['Broken Span', 'Rockfall Path', 'Granite Hollow', 'Quarry Deep', 'Stone Gate'], elite: ['Warded Shrine', 'Bedrock Guard', 'Stone Altar'] },
+    void:   { domain: 'the Hollow Dark', battle: ['Pale Gate', 'Veil Crossing', 'Umbral Hollow', 'Shadow Span', 'Null Reach'], elite: ['Cursed Altar', 'Void Vanguard', 'Eclipse Shrine'] },
+    storm:  { domain: 'the Skyfracture', battle: ['Galecross', 'Thunder Steps', 'Tempest Hollow', 'Stormspire Path', 'Levin Reach'], elite: ['Storm Shrine', 'Tempest Guard', 'Levin Altar'] },
+  };
   function nodeTitle(node, rng) {
     if (node.type === 'boss') return BOSSES[node.bossKey].name;
-    const battleNames = ['Ashen Hollow', 'Veil Crossing', 'Broken Span', 'Mist Gully', 'Ember Steps', 'Hollow Reach', 'Cinder Vale', 'Pale Gate'];
-    const eliteNames = ['Warded Shrine', 'Champion\'s Rest', 'Elite Vanguard', 'Cursed Altar'];
+    const region = ELEMENT_REGION[TIER_ELEMENT[node.tier]] || ELEMENT_REGION.flame;
     if (node.type === 'rest') return 'Wayshrine (Rest)';
     if (node.type === 'reward') return 'Spirit Cache (Reward)';
-    if (node.type === 'elite') return pick(rng, eliteNames);
-    return pick(rng, battleNames);
+    if (node.type === 'elite') return pick(rng, region.elite);
+    return pick(rng, region.battle);
   }
 
   // Build the enemy team spec for a node (real spirits for normal/elite,
   // synthetic boss [+adds spawn dynamically] for boss nodes).
+  // Approach battles are themed to the tier's boss element: enemies are drawn
+  // primarily from that element, with an occasional off-element straggler.
   function buildEnemySpecs(node) {
     if (node.type === 'boss') {
       const b = BOSSES[node.bossKey];
@@ -201,10 +218,30 @@
     const rng = makeRng(node.enemySeed);
     const all = spirits();
     const myTeam = new Set((RUN && RUN.team) || []);
-    const pool = all.filter(s => !myTeam.has(s.id));
-    const chosen = shuffle(rng, pool).slice(0, node.enemyCount);
-    // Elites get a stat bump baked in (separate from raid modifiers).
-    return chosen.map(s => {
+    const themeCls = TIER_ELEMENT[node.tier] || 'flame';
+    const onTheme = shuffle(rng, all.filter(s => !myTeam.has(s.id) && s.cls === themeCls));
+    const offTheme = shuffle(rng, all.filter(s => !myTeam.has(s.id) && s.cls !== themeCls));
+
+    // Fill mostly with on-theme spirits; elites are pure theme; deeper tiers
+    // are stricter. ~1 straggler allowed on normal battles for variety.
+    const count = node.enemyCount;
+    let roster = [];
+    if (node.type === 'elite') {
+      roster = onTheme.slice(0, count);
+    } else {
+      const stragglers = (count >= 4 && rng() < 0.5) ? 1 : 0;
+      roster = onTheme.slice(0, count - stragglers);
+      if (stragglers) roster = roster.concat(offTheme.slice(0, stragglers));
+    }
+    // Top up from off-theme if the element pool was too small (only 8 per class).
+    let oi = 0;
+    while (roster.length < count && oi < offTheme.length) {
+      if (!roster.includes(offTheme[oi])) roster.push(offTheme[oi]);
+      oi++;
+    }
+    roster = shuffle(rng, roster);
+
+    return roster.map(s => {
       if (node.type === 'elite') {
         return { synthetic: true, id: s.id, name: s.name, emoji: s.emoji, img: s.img, cls: s.cls,
           hp: Math.round(s.hp * 1.3), atk: Math.round(s.atk * 1.1), spd: s.spd, passive: s.passive, parts: s.parts };
@@ -243,6 +280,8 @@
     open() {
       ensureUI();
       RUN = loadRun();
+      // Discard runs from an older map layout so the improved structure applies.
+      if (RUN && RUN.v !== MAP_VERSION) { clearRun(); RUN = null; }
       if (RUN && !RUN.finished) renderRunMap();
       else renderRunSetup();
       showPathScreen();
@@ -327,6 +366,7 @@
     if (setupPicks.length !== 5) return;
     const seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>> 0;
     RUN = {
+      v: MAP_VERSION,
       seed, nodes: generateMap(seed), pos: -1, team: setupPicks.slice(),
       gold: 0, shards: 0, fragments: 0, finished: false, reachedDepth: 0,
       // teamHp carries survivor HP% between battles (anti-faceroll attrition)
@@ -339,14 +379,12 @@
 
   // ── Map screen ─────────────────────────────────────────────────────
   function availableNextNodes() {
-    // The next tier's nodes reachable from current pos. Nodes advance linearly
-    // by depth; at each non-boss step the player chooses between the 2 columns
-    // of the NEXT depth (boss nodes are forced/centered).
+    // One node per depth — the next reachable node is simply depth+1.
+    // Each 5-node tier ends in: …→ Rest (guaranteed full heal) → Boss.
     if (!RUN) return [];
     const nextDepth = RUN.pos < 0 ? 1 : RUN.nodes[RUN.pos].depth + 1;
     if (nextDepth > 25) return [];
-    const candidates = RUN.nodes.filter(n => n.depth === nextDepth);
-    return candidates;
+    return RUN.nodes.filter(n => n.depth === nextDepth);
   }
   function renderRunMap() {
     const wrap = document.getElementById('path-body');
@@ -362,8 +400,10 @@
         const reachable = next.some(x => x.idx === n.idx);
         const isCurrent = RUN.pos >= 0 && RUN.nodes[RUN.pos].idx === n.idx;
         const st = n.cleared ? 'cleared' : (reachable ? 'reachable' : (isCurrent ? 'current' : 'locked'));
+        const bossArt = (n.type === 'boss' && BOSSES[n.bossKey] && BOSSES[n.bossKey].portrait)
+          ? `<img src="${BOSSES[n.bossKey].portrait}" class="pn-boss-art" alt="" onerror="this.style.display='none'">` : '';
         return `<div class="path-node pn-${n.type} ${st}" data-idx="${n.idx}" title="${n.title}">
-          <div class="pn-ic">${nodeIcon(n)}</div>
+          ${bossArt}<div class="pn-ic">${nodeIcon(n)}</div>
           <div class="pn-depth">${n.depth}</div>
           ${n.modifiers.length ? `<div class="pn-mod" title="${n.modifiers.map(x => MOD_LABEL[x]).join(', ')}">⚠${n.modifiers.length}</div>` : ''}
         </div>`;
@@ -417,11 +457,14 @@
         <button class="path-go-btn" id="path-go">OPEN CACHE</button>`;
     } else if (n.type === 'boss') {
       const b = BOSSES[n.bossKey];
+      body = `<h4>☠ ${b.name}</h4>`;
+      if (b.portrait) body += `<img src="${b.portrait}" class="pnd-boss-art" alt="${b.name}" onerror="this.style.display='none'">`;
       body += `<p><b>${b.subtitle}</b><br>A mighty boss with ${b.hp} HP and deadly phase mechanics.</p>`;
       if (n.modifiers.length) body += `<p class="pnd-mods">Raid modifiers: ${n.modifiers.map(x => MOD_LABEL[x]).join(', ')}</p>`;
       body += `<button class="path-go-btn boss" id="path-go">CHALLENGE THE BOSS</button>`;
     } else {
-      body += `<p>${n.enemyCount} enemies${n.type === 'elite' ? ' (Elite — tougher, +modifier)' : ''}.</p>`;
+      const elName = ({ flame:'Flame', water:'Water', earth:'Earth', void:'Void', storm:'Storm' })[TIER_ELEMENT[n.tier]] || '';
+      body += `<p>${n.enemyCount} ${elName} spirits${n.type === 'elite' ? ' (Elite — tougher, +modifier)' : ''} guard the way to the ${elName} lord.</p>`;
       if (n.modifiers.length) body += `<p class="pnd-mods">Raid modifiers: ${n.modifiers.map(x => MOD_LABEL[x]).join(', ')}</p>`;
       body += `<button class="path-go-btn" id="path-go">ENTER BATTLE</button>`;
     }
@@ -648,7 +691,11 @@
       .path-node.pn-boss { border-radius:50%; border-color:rgba(232,85,79,0.5); background:rgba(232,85,79,0.08); width:66px; height:66px; }
       .path-node.pn-boss.reachable { border-color:#e8554f; box-shadow:0 0 18px rgba(232,85,79,0.5); }
       .pn-ic { font-size:22px; } .pn-depth { font-size:9px; color:#9a92b5; }
-      .pn-mod { position:absolute; top:-6px; right:-6px; background:#e8a23f; color:#1a1206; font-size:9px; font-weight:700; border-radius:50px; padding:0 4px; }
+      .pn-boss-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:50%; opacity:0.55; }
+      .path-node.pn-boss .pn-ic { position:relative; z-index:1; text-shadow:0 1px 4px #000; }
+      .path-node.pn-boss .pn-depth { position:relative; z-index:1; color:#fff; text-shadow:0 1px 3px #000; }
+      .pnd-boss-art { width:120px; height:120px; object-fit:cover; border-radius:14px; margin:6px auto; display:block; box-shadow:0 0 0 2px #e8554f, 0 0 24px rgba(232,85,79,0.5); }
+      .pn-mod { position:absolute; top:-6px; right:-6px; z-index:2; background:#e8a23f; color:#1a1206; font-size:9px; font-weight:700; border-radius:50px; padding:0 4px; }
       .path-link { width:18px; height:2px; background:rgba(255,255,255,0.1); }
       .path-node-detail { max-width:560px; margin:16px auto 0; text-align:center; background:rgba(255,255,255,0.03);
         border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px; color:#cfc8e6; font-size:13px; }
