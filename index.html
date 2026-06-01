@@ -969,7 +969,7 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 
     <div class="auth-row">
       <label>EMAIL</label>
-      <input id="auth-email" type="email" autocomplete="email" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();authSubmit();}">
+      <input id="auth-email" type="email" autocomplete="email" spellcheck="false" onfocus="prewarmAuth()" onkeydown="if(event.key==='Enter'){event.preventDefault();authSubmit();}">
     </div>
 
     <div class="auth-row">
@@ -5966,7 +5966,27 @@ function showLogin() {
     submitBtn.disabled = true;
   } else {
     warn.classList.add('hidden');
+    // Pre-warm the Auth backend the moment the login screen appears, so by the
+    // time the user finishes typing their credentials the server is already
+    // awake and the first real sign-in lands on a warm endpoint (no cold-start
+    // timeout → no "retry" loop).
+    prewarmAuth();
   }
+}
+
+// Fire a cheap, fire-and-forget request to wake the (free-tier) Supabase Auth
+// service. getSession() hits the GoTrue endpoint without needing credentials.
+// Safe to call repeatedly; we throttle to once per 30s.
+let _lastPrewarm = 0;
+function prewarmAuth() {
+  const now = Date.now();
+  if (now - _lastPrewarm < 30000) return;
+  _lastPrewarm = now;
+  try {
+    // A direct fetch to the auth health endpoint warms the edge + GoTrue without
+    // touching the SDK's auth lock (so it can't queue behind a real sign-in).
+    fetch(SUPABASE_URL + '/auth/v1/health', { headers: { apikey: SUPABASE_ANON_KEY } }).catch(() => {});
+  } catch (e) { /* ignore — best-effort warm-up */ }
 }
 
 function authSwitchTab(mode) {
@@ -6015,17 +6035,24 @@ async function authSubmit() {
   const password = document.getElementById('auth-password').value;
   if (!email || !password) { authMsg('Email and password required.', 'err'); resetBtn(); return; }
 
+  // Warm the backend immediately (covers the case where the user typed fast or
+  // pasted credentials before the focus/showLogin warm-up could fire).
+  prewarmAuth();
+
   const MAX_RETRIES = 3;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const isLast = attempt === MAX_RETRIES;
+    // First attempt gets a generous timeout to absorb a cold start; later
+    // attempts are short because the server is warm by then. Retries happen
+    // silently so a single cold start never looks like a failure to the user.
+    const timeoutMs = attempt === 1 ? 30000 : 12000;
     try {
-      if (attempt === 1) authMsg('Signing in…');
-      else authMsg(`Retrying… (${attempt}/${MAX_RETRIES}) — server may be waking up ☕`);
+      authMsg('Signing in…');
 
       if (authMode === 'signup') {
         const username = document.getElementById('auth-username').value.trim();
         // Signup doesn't need retry — it's a one-shot operation
-        const userId = await withTimeout(signUp(username, email, password), 20000, 'Sign-up');
+        const userId = await withTimeout(signUp(username, email, password), timeoutMs, 'Sign-up');
         AUTH_USER = { id: userId };
         await withTimeout(loadProfile(userId), 20000, 'Profile load');
         authMsg('Welcome, ' + username + '!', 'ok');
@@ -6034,7 +6061,7 @@ async function authSubmit() {
         return;
       } else {
         _authSubmitting = true;
-      const user = await withTimeout(signIn(email, password), 20000, 'Sign-in');
+        const user = await withTimeout(signIn(email, password), timeoutMs, 'Sign-in');
         AUTH_USER = user;
         await withTimeout(loadProfile(user.id), 20000, 'Profile load');
         _authSubmitting = false;
@@ -6053,16 +6080,17 @@ async function authSubmit() {
         err.message.toLowerCase().includes('not found') ||
         err.message.toLowerCase().includes('email not confirmed')
       );
-      // Don't retry bad credentials — that's a user error
+      // Don't retry bad credentials — that's a user error.
       if (isBadCreds || !isTimeout || isLast) {
         _authSubmitting = false;
         authMsg(err.message || 'Auth failed.', 'err');
         resetBtn();
         return;
       }
-      // Timeout on non-last attempt: pause briefly then retry
-      authMsg(`Server is waking up, retrying in 2s… (${attempt}/${MAX_RETRIES})`);
-      await new Promise(r => setTimeout(r, 2000));
+      // Timeout on a non-last attempt: the warm-up should have prevented this,
+      // but retry immediately (no visible "retrying" message, no 2s pause) so
+      // the user just sees "Signing in…" until it lands.
+      _authSubmitting = false;
     }
   }
 }
@@ -6322,6 +6350,11 @@ async function boot() {
   _wirePostIntroAudioUnlock();
 
   if (!isSupabaseReady()) return;
+
+  // Wake the Auth backend the instant the page loads, so it's warm long before
+  // the user reaches the login form (free-tier services idle out and cold-start
+  // slowly on the first request).
+  prewarmAuth();
 
   // Reactive listener: handles SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.
   // Critical: this listener must NEVER disrupt active gameplay. A token refresh
