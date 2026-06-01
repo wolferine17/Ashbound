@@ -2817,9 +2817,9 @@ function initState(playerTeam, enemyTeam) {
     phase: 'player',
     // Battle mode: 'mp' (versus), 'path' (set later by startPathBattle), else 'solo'.
     mode: (typeof MP !== 'undefined' && MP.enabled) ? 'mp' : 'solo',
-    energy: 5,
-    maxEnergy: 5,
-    regenPerTurn: 3,
+    energy: 5,          // start of battle
+    maxEnergy: 7,       // cap (energy carries over + regens up to this)
+    regenPerTurn: 4,    // gained each turn
     enemyEnergy: 5,     // AI uses the same rules as the player now
     playerTeam: playerTeam.map((s, i) => mkCombatant(s, false, i)),
     enemyTeam:  enemyTeam.map((s, i) => mkCombatant(s, true, i)),
