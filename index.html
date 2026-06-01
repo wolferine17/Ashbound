@@ -3420,8 +3420,8 @@ function nextTurn() {
   G.pendingActions = [];
   // Remove dead-spirit cards still in hand
   G.hand = G.hand.filter(e => !e.owner.dead);
-  // Draw 2 new cards from the Veilshard Tome
-  drawCards(2);
+  // Draw 3 new cards from the Veilshard Tome
+  drawCards(3);
 
   // ── Passive: Thundermoth – first card this turn is free
   G.thundermothFreeTurn = G.playerTeam.some(c => !c.dead && c.id === 'thundermoth');
@@ -3448,7 +3448,7 @@ function nextTurn() {
     }
   }
 
-  addLog(`── Turn ${G.turn} · Drew 2 from the Veilshard Tome ──`, 'warn');
+  addLog(`── Turn ${G.turn} · Drew 3 from the Veilshard Tome ──`, 'warn');
   renderBattle();
 }
 
@@ -5588,7 +5588,7 @@ function mpApplyState(state) {
       MP._clientFirstTurn = false;
     } else {
       G.energy = Math.min(G.maxEnergy, (G.energy||0) + G.regenPerTurn);
-      drawCards(2);
+      drawCards(3);
     }
     addLog(`── Turn ${G.turn} · Your turn ──`, 'warn');
   }
@@ -5682,7 +5682,7 @@ function mpHostAdvanceTurn(toHost) {
   if (toHost) {
     G.energy = Math.min(G.maxEnergy, G.energy + G.regenPerTurn);
     G.hand = G.hand.filter(e => !e.owner.dead);
-    drawCards(2);
+    drawCards(3);
     G.thundermothFreeTurn = G.playerTeam.some(c => !c.dead && c.id === 'thundermoth');
     addLog(`── Turn ${G.turn} · Your turn ──`, 'warn');
   } else {
