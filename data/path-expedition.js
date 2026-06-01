@@ -24,6 +24,15 @@
   function toast(m) { const f = P().toast; if (f) try { f(m); } catch (e) {} }
   function spirits() { return P().getSpirits ? P().getSpirits() : []; }
   function player() { return P().getPlayer ? P().getPlayer() : null; }
+  function spiritImgs() { return P().getSpiritImgs ? P().getSpiritImgs() : null; }
+  // Portrait <img> for a spirit, falling back to its emoji glyph if no image.
+  function spiritIcon(s, cssClass, emojiClass) {
+    const imgs = spiritImgs();
+    if (s && imgs && imgs[s.name]) {
+      return `<img src="${imgs[s.name]}" class="${cssClass}" alt="${s.name}">`;
+    }
+    return `<span class="${emojiClass}">${s ? s.emoji : '?'}</span>`;
+  }
 
   // ── seeded RNG (so a run's map is reproducible + co-op shareable) ──
   function makeRng(seed) {
@@ -323,7 +332,7 @@
     const grid = document.getElementById('path-pick-grid');
     grid.innerHTML = owned.map(s => `
       <div class="path-pick-card" data-id="${s.id}">
-        <div class="ppc-emoji">${s.emoji}</div>
+        <div class="ppc-portrait-wrap">${spiritIcon(s, 'ppc-portrait', 'ppc-emoji')}</div>
         <div class="ppc-name">${s.name}</div>
         <div class="ppc-cls cls-${s.cls}">${s.cls}</div>
         <div class="ppc-stats">❤${s.hp} ⚔${s.atk}</div>
@@ -352,7 +361,7 @@
       const isFront = i <= 1;
       html += `<div class="path-slot ${isFront ? 'pf' : 'pb'} ${s ? 'filled' : ''}">
         <span class="path-slot-tag">${isFront ? 'FRONT' : 'BACK'}</span>
-        ${s ? `<span class="pps-emoji">${s.emoji}</span><span class="pps-name">${s.name}</span>` : `<span class="pps-plus">+</span>`}
+        ${s ? `${spiritIcon(s, 'pps-portrait', 'pps-emoji')}<span class="pps-name">${s.name}</span>` : `<span class="pps-plus">+</span>`}
       </div>`;
     }
     row.innerHTML = html;
@@ -436,7 +445,7 @@
       const hp = Math.round((RUN.teamHp[id] != null ? RUN.teamHp[id] : 1) * 100);
       const dead = hp <= 0;
       return `<div class="path-team-chip ${dead ? 'downed' : ''}">
-        <span class="ptc-emoji">${s ? s.emoji : '?'}</span>
+        ${spiritIcon(s, 'ptc-portrait', 'ptc-emoji')}
         <span class="ptc-hp">${dead ? 'DOWNED' : hp + '%'}</span></div>`;
     }).join('');
   }
@@ -664,11 +673,14 @@
       .path-slot.pf .path-slot-tag { background:linear-gradient(135deg,#e8c56a,#caa23f); color:#1a1206; }
       .path-slot.pb .path-slot-tag { background:linear-gradient(135deg,#5a96e8,#2f5fa8); color:#dfeaff; }
       .pps-emoji { font-size:26px; } .pps-name { font-size:9px; color:#e8c56a; } .pps-plus { font-size:24px; color:#6b6685; }
+      .pps-portrait { width:42px; height:42px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.15); }
       .path-pick-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; margin-bottom:16px; }
       .path-pick-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:8px 4px; text-align:center; cursor:pointer; transition:all .15s; }
       .path-pick-card:hover { border-color:rgba(232,197,106,0.4); transform:translateY(-2px); }
       .path-pick-card.picked { border-color:#e8c56a; background:rgba(232,197,106,0.1); box-shadow:0 0 12px rgba(232,197,106,0.3); }
       .ppc-emoji { font-size:26px; } .ppc-name { font-size:11px; color:#e8e2f4; } .ppc-cls { font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+      .ppc-portrait-wrap { display:flex; justify-content:center; margin-bottom:4px; }
+      .ppc-portrait { width:54px; height:54px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,0.15); }
       .ppc-stats { font-size:9px; color:#9a92b5; margin-top:2px; }
       .cls-flame{color:#ff7a3c}.cls-water{color:#3ca6ff}.cls-earth{color:#c8a45a}.cls-storm{color:#a9d8ff}.cls-void{color:#b07cff}.cls-nature{color:#7affb0}
       .path-start-btn, .path-go-btn { display:block; margin:8px auto; padding:13px 40px; background:linear-gradient(135deg,#7b3fe0,#4a20a0);
@@ -684,6 +696,7 @@
         border-radius:10px; padding:6px 12px; min-width:54px; }
       .path-team-chip.downed { opacity:.4; border-color:rgba(232,85,79,0.4); }
       .ptc-emoji { font-size:22px; } .ptc-hp { font-size:10px; color:#7affb0; } .path-team-chip.downed .ptc-hp { color:#e8857f; }
+      .ptc-portrait { width:36px; height:36px; border-radius:7px; object-fit:cover; border:1px solid rgba(255,255,255,0.15); }
       /* map */
       .path-map { display:flex; flex-direction:column; align-items:center; gap:2px; }
       .path-tier { display:flex; gap:18px; align-items:center; justify-content:center; }

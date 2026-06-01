@@ -4471,6 +4471,7 @@ window.__pathBridge = {
   startPathBattle: (ids, specs, opts) => startPathBattle(ids, specs, opts),
   getPlayer:  () => (typeof PLAYER !== 'undefined' ? PLAYER : null),
   getSpirits: () => (typeof SPIRITS !== 'undefined' ? SPIRITS : []),
+  getSpiritImgs: () => (typeof SPIRIT_IMGS !== 'undefined' ? SPIRIT_IMGS : null),
   showScreen: (id) => (typeof showScreen === 'function' ? showScreen(id) : null),
   showHome:   () => (typeof showHome === 'function' ? showHome() : null),
   toast:      (...a) => (typeof toast === 'function' ? toast(...a) : undefined),
