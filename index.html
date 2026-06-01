@@ -4324,6 +4324,12 @@ function startPathBattle(playerSpiritIds, enemySpecs, opts) {
     // If every player spirit is downed coming in, give the frontline a sliver
     // so the battle can actually be played (safety net; shouldn't normally happen).
     if (G.playerTeam.every(c => c.dead)) { const f = G.playerTeam[0]; if (f) { f.dead = false; f.hp = Math.round(f.maxHp * 0.2); } }
+    // initState built the deck + drew the opening hand while everyone was alive.
+    // Now that downed spirits are flagged dead, rebuild the deck and redraw so
+    // their cards aren't dealt (you can't play cards for a downed spirit).
+    buildDeck();
+    G.hand = [];
+    drawCards(4);
   }
 
   // Apply raid modifiers (deterministic, after teams + synergies exist).
