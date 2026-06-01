@@ -1,0 +1,26 @@
+10 :: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+12 :: <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+13 :: <script src="data/spirit-imgs.js"></script>
+14 :: <script src="data/emblems.js"></script>
+15 :: <script src="data/sound-manager.js"></script>
+18 :: <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+197 :: #s-result { background:radial-gradient(ellipse 80% 60% at 50% 40%, #1e1040 0%, var(--bg) 70%); gap:20px; }
+828 :: #s-result { background: radial-gradient(ellipse 90% 70% at 50% 40%, #18093c 0%, var(--bg) 72%); }
+1176 :: <div class="screen hidden" id="s-result">
+3309 :: function endGame(playerWon) {
+3310 :: setTimeout(() => { renderMatchResult(playerWon, /*isMp=*/false); }, 600);
+3864 :: if (id !== 's-result' && SoundManager.layeredSting) SoundManager.stopLayered(true);
+5424 :: showScreen('s-result');
+5654 :: if (screenId === 's-result') return 'silent';
+5756 :: document.addEventListener('click', skip);
+5757 :: document.addEventListener('keydown', skip);
+5760 :: document.addEventListener('click', begin);
+5761 :: document.addEventListener('keydown', begin);
+5782 :: document.addEventListener('click', handler);
+5783 :: document.addEventListener('keydown', handler);
+5822 :: const ids = ['s-draft', 's-battle', 's-result', 's-mp-lobby'];
+6779 :: window.addEventListener('resize', function () { mobile = isMobile(); onResize(); });
+6795 :: document.addEventListener('mousedown', function (e) {
+6816 :: el.addEventListener('mousemove', function (e) {
+6824 :: el.addEventListener('mouseleave', function () { el.style.transform = ''; });
+6859 :: var resultEl = document.getElementById('s-result');

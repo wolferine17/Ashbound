@@ -1,0 +1,20 @@
+1226 :: <p class="lead">You opened <code>index.html</code> by double-clicking. Browsers block API calls (sign-in, multiplayer, l
+1248 :: <strong>Why this matters:</strong> when you open an HTML file directly, the browser sends every API request with <code>O
+2197 :: async function loadProfile(playerId) {
+2418 :: async function persistSpiritUnlock(spiritId) {
+2423 :: async function persistSpiritCards(spiritId) {
+2467 :: function unlockSpirit(state, id, free=false) {
+2481 :: function savePlayer() {
+2484 :: function loadPlayer() {
+2620 :: function initState(playerTeam, enemyTeam) {
+2621 :: function mkCombatant(s, isEnemy, slot) {
+3856 :: function showScreen(id) {
+4101 :: function renderHomeStats() {
+4114 :: renderHomeStats();
+4287 :: renderHomeStats();
+4333 :: for (const c of LOOT_CASES) {
+5489 :: rej(new Error(`${label||'Request'} timed out after ${ms/1000}s. ${hint}`));
+5710 :: // requestAnimationFrame so the browser commits the initial state before the transition begins
+5711 :: requestAnimationFrame(() => {
+5802 :: async function boot() {
+6653 :: rafId = requestAnimationFrame(animate);

@@ -13,6 +13,8 @@
 <script src="data/spirit-imgs.js"></script>
 <script src="data/emblems.js"></script>
 <script src="data/sound-manager.js"></script>
+<script src="data/daily-quests.js"></script>
+<script src="data/path-expedition.js"></script>
 <!-- Three.js (UMD global build, pinned r128 — no build step, exposes window.THREE).
      Used only for the animated 3D battlefield behind the s-battle screen. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -100,6 +102,19 @@ button:active { transform:scale(0.97); }
 .dgl-sub { font-size:8px; color:var(--muted); margin-top:2px; line-height:1.2; max-width:74px; }
 .dgl-front .dgl-title { color:var(--gold); }
 .dgl-back  .dgl-title { color:#7fb0ff; }
+/* ── Team synergy preview panel (draft screen) ── */
+.draft-synergy { width:100%; max-width:760px; margin:10px auto 0; min-height:24px; }
+.syn-head { font-family:var(--font-d); font-size:12px; letter-spacing:2px; color:var(--gold); text-align:center; margin-bottom:8px; }
+.syn-head .syn-roles { color:var(--muted); font-size:10px; letter-spacing:1px; }
+.syn-hint { text-align:center; color:var(--muted); font-size:11px; line-height:1.5; padding:4px 12px; }
+.syn-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+.syn-chip { display:flex; flex-direction:column; gap:2px; padding:7px 12px; border-radius:10px; background:rgba(255,255,255,0.035);
+  border:1px solid rgba(255,255,255,0.1); min-width:150px; max-width:230px; }
+.syn-chip-name { font-family:var(--font-d); font-size:11px; letter-spacing:1px; color:#e8e2f4; }
+.syn-chip-meta { font-size:10px; color:var(--muted); line-height:1.3; }
+.syn-role .syn-chip-name { color:#7fb0ff; }
+.syn-pair { border-color:rgba(232,197,106,0.4); background:rgba(232,197,106,0.06); }
+.syn-pair .syn-chip-name { color:var(--gold); }
 .draft-roster-title { font-family:var(--font-d); font-size:13px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; padding:12px 0 8px; }
 .draft-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; width:100%; max-width:820px; }
 .roster-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:12px; cursor:pointer; transition:all 0.2s var(--ease); position:relative; overflow:hidden; }
@@ -991,6 +1006,16 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
       <div class="home-tile-name">PLAY</div>
       <div class="home-tile-sub">Enter the Arena</div>
     </div>
+    <div class="home-tile" id="home-daily" onclick="DailyQuests.openPanel()" style="border-color:rgba(232,197,106,0.45);position:relative;">
+      <div class="home-tile-ic">🎁</div>
+      <div class="home-tile-name" style="color:var(--gold);">DAILY</div>
+      <div class="home-tile-sub">Quests &amp; login rewards</div>
+    </div>
+    <div class="home-tile" id="home-path" onclick="PathExpedition.open()" style="border-color:rgba(232,85,79,0.4);">
+      <div class="home-tile-ic">🗺</div>
+      <div class="home-tile-name" style="color:#e8857f;">PATH</div>
+      <div class="home-tile-sub">25-node expedition</div>
+    </div>
     <div class="home-tile" onclick="showMpLobby()" style="border-color:rgba(61,232,197,0.35);">
       <div class="home-tile-ic">🌐</div>
       <div class="home-tile-name" style="color:var(--teal);">VERSUS</div>
@@ -1131,6 +1156,7 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
     <p id="draft-status">Choose 5 spirits for your team</p>
   </div>
   <div class="draft-team-row" id="draft-slots"></div>
+  <div class="draft-synergy" id="draft-synergy"></div>
   <div class="draft-roster-title">Equip Emblem</div>
   <div class="draft-emblem-row empty" id="draft-emblem-slot" onclick="openEmblemPicker()">
     <div class="em-glyph">∅</div><div style="flex:1;text-align:left;">No emblem equipped — tap to pick</div>
@@ -2267,6 +2293,9 @@ async function loadProfile(playerId) {
     active = active.slice(0,4);
     PLAYER.spirits[sid] = { owned, active };
   }
+  // Daily Quests + Login Streak: init from the same DB row (cols may be absent
+  // pre-migration — module falls back to localStorage).
+  if (window.DailyQuests) { try { DailyQuests.onProfileLoaded(PLAYER, p); } catch (e) {} }
   return PLAYER;
 }
 
@@ -2565,6 +2594,10 @@ function applyStatus(target, key, amount) {
 // Heal that respects HEAL BLOCK + max-HP cap. Returns HP actually restored.
 function healSpirit(target, amount) {
   if (!target || amount <= 0) return 0;
+  // Path raid modifier: healing disabled for the player side.
+  if (typeof G !== 'undefined' && G.pathNoHeal && target && !target.isEnemy) {
+    return 0;
+  }
   if (target.statusEffects && target.statusEffects.heal_block > 0) {
     addLog(`🚫 ${target.name}'s healing is blocked!`, 'warn');
     return 0;
@@ -2582,6 +2615,7 @@ function applyCardStatuses(attacker, target, card) {
   if (!card || !card.apply || !card.apply.length) return;
   const oppTeam  = attacker.isEnemy ? G.playerTeam : G.enemyTeam;
   const allyTeam = attacker.isEnemy ? G.enemyTeam : G.playerTeam;
+  let _appliedCount = 0;
   for (const a of card.apply) {
     let rec = [];
     if (a.to === 'self')        rec = [attacker];
@@ -2592,8 +2626,10 @@ function applyCardStatuses(attacker, target, card) {
       if (!r || r.dead) continue;
       applyStatus(r, a.k, a.n);
       addLog(`${_STATUS_ICON[a.k]||'✦'} ${r.name}: ${a.k}${a.n ? ' '+a.n : ''}`, 'warn');
+      _appliedCount++;
     }
   }
+  if (_appliedCount && !attacker.isEnemy && window.DailyQuests) DailyQuests.onStatusApplied(_appliedCount);
 }
 
 // Bespoke one-off card behaviours that don't fit the generic appliers.
@@ -2617,6 +2653,126 @@ function applyCardSpecial(attacker, target, card) {
   }
 }
 
+// ═══════════════════════════════════════════════════
+// TEAM SYNERGIES — composition bonuses (deterministic; MP-safe, no RNG)
+// A "team" is now more than 5 separate spirits. Three synergy layers:
+//   1) ELEMENT bonds   — 3+/4+/5 of one class grant escalating, themed buffs
+//   2) ROLE bonds      — derived role mix (Tank/Healer/DPS/Control) grants buffs
+//   3) PAIR bonds      — specific named duos grant a unique passive when both are on the team
+// Bonuses are applied to combatant fields the engine already reads
+// (maxHp/hp, atkMod, shieldMod, healMod, spdMod) + team-level G fields
+// (critBonus, regen). Returned summary drives the draft preview + battle banner.
+// ═══════════════════════════════════════════════════
+
+// Role is derived from a spirit's stats + signature card mix so we don't have
+// to hand-tag 48 spirits. Pure function of static data → identical on all clients.
+function deriveRole(spirit) {
+  const cards = spirit.parts || [];
+  const has = (t) => cards.some(c => c.type === t || (c.apply && c.apply.some(a => a.k === t)));
+  const healy = cards.filter(c => c.type === 'heal' || c.type === 'ally_heal').length;
+  const controly = cards.filter(c => c.apply && c.apply.some(a => ['taunt','silence','weak','vulnerable','heal_block','poison'].includes(a.k))).length;
+  if (healy >= 1 && spirit.atk <= 85) return 'Healer';
+  if (spirit.hp >= 560) return 'Tank';
+  if (controly >= 1) return 'Control';
+  if (spirit.atk >= 95 || spirit.spd >= 105) return 'DPS';
+  // fallback by dominant stat
+  if (spirit.hp >= 520) return 'Tank';
+  return 'DPS';
+}
+
+const ELEMENT_BOND_NAME = { flame:'Emberbound', water:'Tidesworn', earth:'Stoneheart', storm:'Tempestkin', void:'Voidtouched', nature:'Verdant' };
+
+// Named pair bonds: both spirit ids must be present. Kept small + iconic.
+const PAIR_BONDS = [
+  { ids:['emberfox','sparkfox'],      name:'Twin Foxes',     desc:'+8% crit chance to the whole team.', apply:(team,G)=>{ if(!team[0].isEnemy) G.playerCritBonus += 0.08; else G.enemyCritBonus += 0.08; } },
+  { ids:['scorchdrake','ashphoenix'], name:'Phoenix & Drake', desc:'All Flame allies gain +30 max HP.', apply:(team)=>{ for(const c of team) if(c.cls==='flame'){ c.maxHp+=30; c.hp+=30; } } },
+  { ids:['tideserpent','abysswhale'], name:'Deep Coven',     desc:'+15% healing done by the team.', apply:(team)=>{ for(const c of team) c.healMod*=1.15; } },
+  { ids:['crystalgolem','stoneboar'], name:'Bulwark Pact',   desc:'+20% shield value for the team.', apply:(team)=>{ for(const c of team) c.shieldMod*=1.20; } },
+  { ids:['nightstalker','shadowleech'],name:'Night Hunters', desc:'Front-row allies gain +8% ATK.', apply:(team)=>{ for(const c of team) if(c.position==='front') c.atkMod*=1.08; } },
+  { ids:['bloomsprite','willowsage'], name:'Grovekeepers',   desc:'Team regenerates +10 HP each turn.', apply:(team,G,side)=>{ G[side+'TeamRegen']=(G[side+'TeamRegen']||0)+10; } },
+  { ids:['mirrorfiend','thundermoth'],name:'Echo Resonance', desc:'+10% ATK to the whole team.', apply:(team)=>{ for(const c of team) c.atkMod*=1.10; } },
+  { ids:['tempestbird','galewing'],   name:'Galeforce',      desc:'+6% crit chance to the whole team.', apply:(team,G,side)=>{ (side==='player') ? G.playerCritBonus+=0.06 : G.enemyCritBonus+=0.06; } },
+];
+
+// Compute + APPLY synergies to a freshly-built team. Returns a summary:
+//   { element:{cls,count,tier,name,desc}|null, roles:{Tank,Healer,...}, roleBonuses:[...], pairs:[{name,desc}] }
+function applyTeamSynergies(team) {
+  if (!team || !team.length) return { element:null, roles:{}, roleBonuses:[], pairs:[] };
+  const side = team[0].isEnemy ? 'enemy' : 'player';
+
+  // ── 1) ELEMENT bond ──
+  const clsCount = {};
+  for (const c of team) clsCount[c.cls] = (clsCount[c.cls]||0)+1;
+  let domCls = null, domN = 0;
+  for (const k in clsCount) if (clsCount[k] > domN) { domCls = k; domN = clsCount[k]; }
+  let element = null;
+  if (domN >= 3) {
+    const tier = domN >= 5 ? 3 : (domN >= 4 ? 2 : 1);
+    element = { cls:domCls, count:domN, tier, name:ELEMENT_BOND_NAME[domCls]+' '+['I','II','III'][tier-1], desc:'' };
+    // Each element bond has a flavorful, escalating effect.
+    const mult = [1.06, 1.10, 1.15][tier-1];          // scaling factor used by several
+    const flat = [20, 35, 55][tier-1];
+    if (domCls === 'flame')  { for(const c of team) if(c.cls==='flame') c.atkMod*=mult;   element.desc=`Flame allies +${Math.round((mult-1)*100)}% ATK.`; }
+    if (domCls === 'earth')  { for(const c of team) if(c.cls==='earth'){ c.maxHp+=flat; c.hp+=flat; } element.desc=`Earth allies +${flat} max HP.`; }
+    if (domCls === 'water')  { for(const c of team) if(c.cls==='water') c.healMod*=mult;  element.desc=`Water allies +${Math.round((mult-1)*100)}% healing.`; }
+    if (domCls === 'storm')  { (side==='player') ? G.playerCritBonus+=0.03*tier : G.enemyCritBonus+=0.03*tier; element.desc=`Team +${3*tier}% crit chance.`; }
+    if (domCls === 'void')   { (side==='player') ? G.playerCritBonus+=0.04*tier : G.enemyCritBonus+=0.04*tier; element.desc=`Team +${4*tier}% crit chance.`; }
+    if (domCls === 'nature') { G[side+'TeamRegen']=(G[side+'TeamRegen']||0)+flat/4; element.desc=`Team regen +${Math.round(flat/4)} HP/turn.`; }
+  }
+
+  // ── 2) ROLE bonds ──
+  const roles = { Tank:0, Healer:0, DPS:0, Control:0 };
+  for (const c of team) { c.role = deriveRole(SPIRITS.find(s=>s.id===c.id) || c); roles[c.role] = (roles[c.role]||0)+1; }
+  const roleBonuses = [];
+  if (roles.Tank >= 2)    { for(const c of team){ c.maxHp+=40; c.hp+=40; } roleBonuses.push({name:'Iron Wall', desc:'2+ Tanks: +40 max HP to all allies.'}); }
+  if (roles.Healer >= 2)  { for(const c of team) c.healMod*=1.20; roleBonuses.push({name:'Sanctuary', desc:'2+ Healers: +20% healing done.'}); }
+  if (roles.DPS >= 3)     { for(const c of team) c.atkMod*=1.08; roleBonuses.push({name:'Vanguard', desc:'3+ DPS: +8% ATK to all allies.'}); }
+  if (roles.Control >= 2) { (side==='player') ? G.playerCritBonus+=0.06 : G.enemyCritBonus+=0.06; roleBonuses.push({name:'Disrupt', desc:'2+ Control: +6% team crit chance.'}); }
+  // Balanced "one of each core role" reward
+  if (roles.Tank>=1 && roles.Healer>=1 && roles.DPS>=1) { for(const c of team){ c.maxHp+=30; c.hp+=30; c.atkMod*=1.04; } roleBonuses.push({name:'Balanced Host', desc:'Tank + Healer + DPS: +30 HP & +4% ATK to all.'}); }
+
+  // ── 3) PAIR bonds ──
+  const ids = new Set(team.map(c => c.id));
+  const pairs = [];
+  for (const pb of PAIR_BONDS) {
+    if (pb.ids.every(id => ids.has(id))) {
+      try { pb.apply(team, G, side); } catch(e){}
+      pairs.push({ name:pb.name, desc:pb.desc });
+    }
+  }
+  return { element, roles, roleBonuses, pairs };
+}
+
+// Preview-only (no mutation): compute the synergy summary for a list of static
+// SPIRITS objects, used by the draft screen. Mirrors applyTeamSynergies' logic.
+function previewTeamSynergies(spiritList) {
+  const list = spiritList.filter(Boolean);
+  const out = { element:null, roles:{Tank:0,Healer:0,DPS:0,Control:0}, roleBonuses:[], pairs:[] };
+  if (!list.length) return out;
+  const clsCount = {};
+  for (const s of list) clsCount[s.cls] = (clsCount[s.cls]||0)+1;
+  let domCls=null, domN=0;
+  for (const k in clsCount) if (clsCount[k] > domN) { domCls=k; domN=clsCount[k]; }
+  if (domN >= 3) {
+    const tier = domN >= 5 ? 3 : (domN >= 4 ? 2 : 1);
+    const descMap = {
+      flame:`Flame allies +${[6,10,15][tier-1]}% ATK.`, earth:`Earth allies +${[20,35,55][tier-1]} max HP.`,
+      water:`Water allies +${[6,10,15][tier-1]}% healing.`, storm:`Team +${3*tier}% crit chance.`,
+      void:`Team +${4*tier}% crit chance.`, nature:`Team regen +${Math.round([20,35,55][tier-1]/4)} HP/turn.`,
+    };
+    out.element = { cls:domCls, count:domN, tier, name:ELEMENT_BOND_NAME[domCls]+' '+['I','II','III'][tier-1], desc:descMap[domCls] };
+  }
+  for (const s of list) { const r=deriveRole(s); out.roles[r]=(out.roles[r]||0)+1; }
+  if (out.roles.Tank>=2)    out.roleBonuses.push({name:'Iron Wall', desc:'2+ Tanks: +40 max HP to all allies.'});
+  if (out.roles.Healer>=2)  out.roleBonuses.push({name:'Sanctuary', desc:'2+ Healers: +20% healing done.'});
+  if (out.roles.DPS>=3)     out.roleBonuses.push({name:'Vanguard', desc:'3+ DPS: +8% ATK to all allies.'});
+  if (out.roles.Control>=2) out.roleBonuses.push({name:'Disrupt', desc:'2+ Control: +6% team crit chance.'});
+  if (out.roles.Tank>=1 && out.roles.Healer>=1 && out.roles.DPS>=1) out.roleBonuses.push({name:'Balanced Host', desc:'Tank + Healer + DPS: +30 HP & +4% ATK to all.'});
+  const ids = new Set(list.map(s=>s.id));
+  for (const pb of PAIR_BONDS) if (pb.ids.every(id=>ids.has(id))) out.pairs.push({name:pb.name, desc:pb.desc});
+  return out;
+}
+
 function initState(playerTeam, enemyTeam) {
   function mkCombatant(s, isEnemy, slot) {
     const clone = JSON.parse(JSON.stringify(s));
@@ -2626,8 +2782,9 @@ function initState(playerTeam, enemyTeam) {
       const activeNames = PLAYER.spirits[s.id].active;
       const fromPool = (s.pool || s.parts).filter(c => activeNames.includes(c.name));
       if (fromPool.length) clone.parts = JSON.parse(JSON.stringify(fromPool));
-    } else if (isEnemy && s.pool && s.pool.length >= 4) {
-      // Enemies get a random 4 from their own pool for variety
+    } else if (isEnemy && !s._isBoss && s.pool && s.pool.length >= 4) {
+      // Enemies get a random 4 from their own pool for variety.
+      // Path bosses (_isBoss) keep their exact authored kit — never shuffled.
       const shuffled = s.pool.slice().sort(()=>Math.random()-0.5).slice(0,4);
       clone.parts = JSON.parse(JSON.stringify(shuffled));
     }
@@ -2648,11 +2805,16 @@ function initState(playerTeam, enemyTeam) {
       // ── New named status-effect system (layered beside legacy `effects` array) ──
       statusEffects: newStatusEffects(),
       furyTurns: 0,         // remaining turns of FURY (rage payoff)
+      // ── Team-synergy output multipliers (1 = no bonus; set by applyTeamSynergies) ──
+      shieldMod: 1,
+      healMod: 1,
     };
   }
   G = {
     turn: 1,
     phase: 'player',
+    // Battle mode: 'mp' (versus), 'path' (set later by startPathBattle), else 'solo'.
+    mode: (typeof MP !== 'undefined' && MP.enabled) ? 'mp' : 'solo',
     energy: 5,
     maxEnergy: 5,
     regenPerTurn: 3,
@@ -2681,6 +2843,10 @@ function initState(playerTeam, enemyTeam) {
       enemy:  { used: {}, counters: {}, flags: {}, stats: {} }
     }
   };
+  // ── Team Synergies: apply composition bonuses to each side at battle start ──
+  // (Done BEFORE deck/hand so maxHp changes are reflected everywhere.)
+  G.playerSynergies = applyTeamSynergies(G.playerTeam);
+  G.enemySynergies  = applyTeamSynergies(G.enemyTeam);
   buildDeck();
   // Deal opening hand: 4 random cards
   G.hand = [];
@@ -2745,6 +2911,7 @@ function classMultiplier(attackerCls, defenderCls) {
 // ═══════════════════════════════════════════════════
 function resolveCard(attacker, card, target) {
   if (attacker.dead || target.dead) return;
+  if (!card._isEchoRepeat && !attacker.isEnemy && window.DailyQuests) DailyQuests.onCardPlayed();  // daily-quest tracking
   // BLEED: a bleeding spirit takes self-damage each time it plays a card (not on echo repeat).
   if (!card._isEchoRepeat && attacker.statusEffects && attacker.statusEffects.bleed > 0) {
     const bd = 10 * attacker.statusEffects.bleed;
@@ -2805,6 +2972,7 @@ function resolveCard(attacker, card, target) {
       const dmg = applyDamage(target, Math.round(power) + (dmgCtx.bonusDmg||0) + critBonusDmg, attacker, !!card.pierce);
       addLog(`${attacker.name} → ${card.name} deals ${dmg} dmg to ${target.name}${card.pierce?' ✦pierce':''}${isCrit?' <CRIT>':''}${clsMult>1?' ✦':''}`, isCrit?'crit':clsMult>1?'em':'');
       showFloatDmg(target, dmg, isCrit ? '#ffd700' : '#e87070');
+      if (!attacker.isEnemy && dmg > 0 && window.DailyQuests) DailyQuests.onDamageDealt(dmg);  // daily-quest tracking
       // LIFESTEAL on a plain damage card (e.g. Soul Drain): heal % of damage dealt.
       if (card.lifesteal && dmg > 0) {
         const h = healSpirit(attacker, Math.round(dmg * card.lifesteal));
@@ -2840,11 +3008,12 @@ function resolveCard(attacker, card, target) {
         }
       }
       addLog(`${attacker.name} → ${card.name} hits ALL for ~${Math.round(total/team.filter(t=>!t.dead).length)} dmg each`, 'em');
+      if (!attacker.isEnemy && total > 0 && window.DailyQuests) DailyQuests.onDamageDealt(total);  // daily-quest tracking
       break;
     }
     case 'shield': {
       // Emblem modifyShieldAmount: Deep Pressure +15%
-      const shCtx = { caster: attacker, target: attacker, amount: Math.round(power), card };
+      const shCtx = { caster: attacker, target: attacker, amount: Math.round(power * (attacker.shieldMod||1)), card };
       applyEmblemHook('modifyShieldAmount', side, shCtx);
       attacker.shield = Math.min(200, attacker.shield + Math.max(0, Math.round(shCtx.amount)));
       addLog(`${attacker.name} → ${card.name}: gains ${shCtx.amount} shield (${attacker.shield}/200)`, '');
@@ -2852,7 +3021,7 @@ function resolveCard(attacker, card, target) {
       break;
     }
     case 'ally_shield': {
-      const shCtx = { caster: attacker, target, amount: Math.round(power), card };
+      const shCtx = { caster: attacker, target, amount: Math.round(power * (attacker.shieldMod||1)), card };
       applyEmblemHook('modifyShieldAmount', side, shCtx);
       target.shield = Math.min(200, target.shield + Math.max(0, Math.round(shCtx.amount)));
       addLog(`${attacker.name} → ${card.name}: shields ${target.name} for ${shCtx.amount} (${target.shield}/200)`, '');
@@ -2861,7 +3030,7 @@ function resolveCard(attacker, card, target) {
     }
     case 'ally_heal': {
       // Emblem modifyHealAmount: Overgrowth, Leviathan's Blessing (overflow), etc.
-      const healCtx = { healer: attacker, target, amount: Math.round(power), card };
+      const healCtx = { healer: attacker, target, amount: Math.round(power * (attacker.healMod||1)), card };
       applyEmblemHook('modifyHealAmount', side, healCtx);
       const amt2 = Math.max(0, Math.round(healCtx.amount));
       const applied2 = healSpirit(target, amt2);   // respects HEAL BLOCK
@@ -2872,7 +3041,7 @@ function resolveCard(attacker, card, target) {
       break;
     }
     case 'heal': {
-      const healCtx = { healer: attacker, target: attacker, amount: Math.round(power), card };
+      const healCtx = { healer: attacker, target: attacker, amount: Math.round(power * (attacker.healMod||1)), card };
       applyEmblemHook('modifyHealAmount', side, healCtx);
       const amt = Math.max(0, Math.round(healCtx.amount));
       const applied = healSpirit(attacker, amt);   // respects HEAL BLOCK
@@ -2994,6 +3163,11 @@ function applyDamage(target, raw, attacker=null, pierce=false) {
   // SFX: an attack actually landed (after shield absorption)
   if (dmg > 0) SoundManager.play('hit');
 
+  // Path raid modifier 'thorns': enemies reflect 10% of damage taken to a player attacker.
+  if (G.pathThorns && attacker && !attacker.isEnemy && target.isEnemy && !attacker.dead && dmg > 0) {
+    const reflect = Math.round(dmg * 0.10);
+    if (reflect > 0) { attacker.hp -= reflect; addLog(`🌑 Cursed thorns reflect ${reflect} to ${attacker.name}!`, ''); }
+  }
   // Passive: Ashenmole – thorns 12 dmg to attacker
   if (attacker && !target.dead && target.id === 'ashenmole' && dmg > 0) {
     attacker.hp -= 12;
@@ -3096,6 +3270,14 @@ function processStatusEffects(spirit, phase) {
 }
 function processTeamStatus(team, phase) {
   for (const c of team) processStatusEffects(c, phase);
+  // Team-synergy regen (Verdant / Grovekeepers): heal each living ally at turn end.
+  if (phase === 'turn_end' && team.length) {
+    const side = team[0].isEnemy ? 'enemy' : 'player';
+    const regen = G[side + 'TeamRegen'] || 0;
+    if (regen > 0) {
+      for (const c of team) { if (!c.dead) healSpirit(c, regen); }
+    }
+  }
   checkDeaths();
 }
 
@@ -3147,6 +3329,8 @@ function runEnemyTurn() {
   let energy = G.enemyEnergy;
   // Enemy turn start: poison tick + status decay + fury check.
   processTeamStatus(G.enemyTeam, 'turn_start');
+  // Path boss mechanics fire at the start of the enemy turn (phases/enrage/shields/adds).
+  if (PATH && PATH.bossState) bossOnEnemyTurn();
   const alive = G.enemyTeam.filter(c => !c.dead);
   const playerAlive = G.playerTeam.filter(c => !c.dead);
   if (!alive.length || !playerAlive.length) { nextTurn(); return; }
@@ -3307,6 +3491,18 @@ function applyCardPlay(owner, card, target, targetSide, targetIdx) {
 }
 
 function endGame(playerWon) {
+  // Path Expedition: route the result back to the Path controller instead of
+  // the normal solo result screen (the module shows its own node-cleared UI).
+  if (PATH && PATH.active && G.mode === 'path') {
+    const summary = {
+      playerWon,
+      survivors: G.playerTeam.filter(c => !c.dead).map(c => ({ id: c.id, hpPct: Math.max(0, c.hp / c.maxHp) })),
+    };
+    const cb = PATH.onResult;
+    PATH.active = false;
+    setTimeout(() => { if (cb) { try { cb(playerWon, summary); } catch (e) { console.warn('path onResult', e); showHome(); } } else { showHome(); } }, 700);
+    return;
+  }
   setTimeout(() => { renderMatchResult(playerWon, /*isMp=*/false); }, 600);
 }
 
@@ -3912,6 +4108,37 @@ function renderDraftSlots() {
   document.getElementById('draft-status').textContent =
     draftSelected.length < 5 ? `Choose ${5-draftSelected.length} more spirit${5-draftSelected.length!==1?'s':''} · first 2 = Frontline, next 3 = Backline` : 'Team ready! (Slots 1-2 frontline, 3-5 backline)';
   document.getElementById('draft-confirm').disabled = draftSelected.length < 5;
+  renderDraftSynergy();
+}
+
+// Live synergy preview shown beneath the draft slots.
+const _SYN_CLS_COLOR = { flame:'#ff7a3c', water:'#3ca6ff', earth:'#c8a45a', storm:'#a9d8ff', void:'#b07cff', nature:'#7affb0' };
+function renderDraftSynergy() {
+  const el = document.getElementById('draft-synergy');
+  if (!el) return;
+  const picks = draftSelected.filter(Boolean);
+  if (picks.length < 2) {
+    el.innerHTML = `<div class="syn-hint">Pick spirits to discover team synergies — share an element, balance your roles, or find a hidden pair bond.</div>`;
+    return;
+  }
+  const syn = previewTeamSynergies(picks);
+  const chips = [];
+  if (syn.element) {
+    const col = _SYN_CLS_COLOR[syn.element.cls] || '#e8c56a';
+    chips.push(`<div class="syn-chip syn-element" style="border-color:${col};box-shadow:0 0 10px ${col}55;">
+      <span class="syn-chip-name" style="color:${col};">${syn.element.name}</span>
+      <span class="syn-chip-meta">${syn.element.count}× ${syn.element.cls} · ${syn.element.desc}</span></div>`);
+  }
+  for (const r of syn.roleBonuses) {
+    chips.push(`<div class="syn-chip syn-role"><span class="syn-chip-name">${r.name}</span><span class="syn-chip-meta">${r.desc}</span></div>`);
+  }
+  for (const p of syn.pairs) {
+    chips.push(`<div class="syn-chip syn-pair"><span class="syn-chip-name">✦ ${p.name}</span><span class="syn-chip-meta">${p.desc}</span></div>`);
+  }
+  // role mix readout
+  const roleStr = ['Tank','Healer','DPS','Control'].filter(r=>syn.roles[r]).map(r=>`${syn.roles[r]} ${r}`).join(' · ');
+  const head = `<div class="syn-head">TEAM SYNERGIES${roleStr?` <span class="syn-roles">(${roleStr})</span>`:''}</div>`;
+  el.innerHTML = head + (chips.length ? `<div class="syn-chips">${chips.join('')}</div>` : `<div class="syn-hint">No active bonuses yet — try 3+ of one element, 2 Tanks/Healers, or a known pair.</div>`);
 }
 
 function makeDraftGroupLabel(title, sub, which) {
@@ -3975,8 +4202,214 @@ function startBattle() {
   initState(draftSelected, enemyTeam);
   showScreen('s-battle');
   addLog('⚔ Battle begins! 4 cards drawn from the Veilshard Tome.', 'warn');
+  logTeamSynergies(G.playerSynergies, 'Your');
   renderBattle();
 }
+
+// Concise battle-log summary of a side's active synergies.
+function logTeamSynergies(syn, who) {
+  if (!syn) return;
+  const names = [];
+  if (syn.element) names.push(syn.element.name);
+  for (const r of (syn.roleBonuses||[])) names.push(r.name);
+  for (const p of (syn.pairs||[])) names.push('✦'+p.name);
+  if (names.length) addLog(`🔗 ${who} team synergies: ${names.join(', ')}.`, 'em');
+}
+
+// ═══════════════════════════════════════════════════
+// PATH EXPEDITION — engine hooks (the content/UI lives in data/path-expedition.js)
+// ═══════════════════════════════════════════════════
+// PATH holds the active in-battle run context; null outside a Path battle.
+let PATH = null;
+
+// Start a Path battle. `enemySpecs` is an array of plain spirit-like objects
+// (real SPIRITS entries OR synthetic boss/add objects with their own parts).
+// `opts` = { boss: <bossDef|null>, modifiers: [...], node: <nodeMeta> }.
+// Reuses initState + the whole battle engine; routes the result back to PATH.
+function startPathBattle(playerSpiritIds, enemySpecs, opts) {
+  opts = opts || {};
+  const playerTeam = playerSpiritIds.map(id => SPIRITS.find(s => s.id === id)).filter(Boolean);
+  if (playerTeam.length < 1) { toast('No valid spirits for Path battle'); return; }
+  const enemyTeam = enemySpecs.map(normalizePathEnemy);
+
+  PATH = {
+    active: true,
+    boss: opts.boss || null,
+    modifiers: opts.modifiers || [],
+    node: opts.node || null,
+    bossState: null,
+    onResult: opts.onResult || null,   // callback(playerWon, summary)
+  };
+
+  initState(playerTeam, enemyTeam);
+  G.mode = 'path';
+
+  // Carry-over survivor HP between Path battles (attrition). startHp maps
+  // spiritId → hpPct (0 = downed → starts dead this battle until a rest node).
+  if (opts.startHp) {
+    for (const c of G.playerTeam) {
+      const pct = opts.startHp[c.id];
+      if (pct == null) continue;
+      if (pct <= 0) { c.dead = true; c.hp = 0; c.shield = 0; }
+      else { c.hp = Math.max(1, Math.round(c.maxHp * pct)); }
+    }
+    // If every player spirit is downed coming in, give the frontline a sliver
+    // so the battle can actually be played (safety net; shouldn't normally happen).
+    if (G.playerTeam.every(c => c.dead)) { const f = G.playerTeam[0]; if (f) { f.dead = false; f.hp = Math.round(f.maxHp * 0.2); } }
+  }
+
+  // Apply raid modifiers (deterministic, after teams + synergies exist).
+  applyPathModifiers(PATH.modifiers);
+
+  // Initialize boss controller if this node has a boss.
+  if (PATH.boss) initBossController(PATH.boss);
+
+  showScreen('s-battle');
+  addLog(`⚔ ${opts.node && opts.node.title ? opts.node.title : 'Path battle'} begins!`, 'warn');
+  logTeamSynergies(G.playerSynergies, 'Your');
+  if (PATH.boss) addLog(`☠ BOSS: ${PATH.boss.name} — ${PATH.boss.subtitle||''}`, 'crit');
+  renderBattle();
+}
+
+// Convert a Path enemy spec into a SPIRITS-shaped object initState can clone.
+// Synthetic bosses/adds carry { synthetic:true, parts:[...] } and their own stats.
+function normalizePathEnemy(spec) {
+  if (typeof spec === 'string') { return SPIRITS.find(s => s.id === spec) || SPIRITS[0]; }
+  if (spec && spec.synthetic) {
+    // Ensure required fields + card parts exist; fall back to a template spirit's cards.
+    const base = SPIRITS.find(s => s.cls === spec.cls) || SPIRITS[0];
+    return {
+      id: spec.id || ('boss_' + Math.random().toString(36).slice(2, 7)),
+      name: spec.name || 'Unknown',
+      emoji: spec.emoji || '☠',
+      img: spec.img || base.img || 1,
+      cls: spec.cls || base.cls,
+      hp: spec.hp || 1000,
+      atk: spec.atk || 95,
+      spd: spec.spd || 80,
+      passive: spec.passive || '',
+      parts: JSON.parse(JSON.stringify(spec.parts && spec.parts.length ? spec.parts : base.parts)),
+      pool: spec.parts || base.parts,
+      _isBoss: !!spec._isBoss,
+    };
+  }
+  // a real spirit id passed inside an object
+  if (spec && spec.id && SPIRITS.find(s => s.id === spec.id)) return SPIRITS.find(s => s.id === spec.id);
+  return SPIRITS[0];
+}
+
+// Raid modifiers tweak the just-built G teams. Pure stat math → MP-safe.
+function applyPathModifiers(mods) {
+  if (!mods || !mods.length) return;
+  for (const m of mods) {
+    if (m === 'enemy_atk_up')   { for (const c of G.enemyTeam) c.atkMod *= 1.20; }
+    if (m === 'enemy_hp_up')    { for (const c of G.enemyTeam) { c.maxHp = Math.round(c.maxHp*1.25); c.hp = c.maxHp; } }
+    if (m === 'player_no_heal') { G.pathNoHeal = true; }   // consulted by healSpirit
+    if (m === 'less_energy')    { G.maxEnergy = Math.max(3, G.maxEnergy - 1); G.energy = G.maxEnergy; }
+    if (m === 'thorns')         { G.pathThorns = true; }   // enemies reflect a little damage
+    addLog(`⚠ Raid modifier: ${pathModifierLabel(m)}`, 'warn');
+  }
+}
+function pathModifierLabel(m) {
+  return ({ enemy_atk_up:'Enemies deal +20% damage', enemy_hp_up:'Enemies have +25% HP',
+    player_no_heal:'Healing disabled', less_energy:'-1 max energy', thorns:'Enemies reflect 10% damage' })[m] || m;
+}
+
+// ── Boss controller ─────────────────────────────────────────────────
+// Bosses are data-driven via bossDef.mechanics. The controller runs each
+// enemy turn (after the AI acts) and at HP-threshold crossings (phases).
+function initBossController(bossDef) {
+  const boss = G.enemyTeam.find(c => c._isBoss) || G.enemyTeam[0];
+  if (!boss) return;
+  PATH.bossState = {
+    ref: boss,
+    def: bossDef,
+    phase: 0,
+    enraged: false,
+    firedThresholds: {},
+    turnCount: 0,
+  };
+  boss._base_atk = boss.atk;
+}
+
+// Called at the start of each enemy turn (from runEnemyTurn) for Path bosses.
+function bossOnEnemyTurn() {
+  if (!PATH || !PATH.bossState) return;
+  const bs = PATH.bossState, boss = bs.ref, def = bs.def;
+  if (boss.dead) return;
+  bs.turnCount++;
+
+  // PHASE thresholds: fire once when HP drops below pct.
+  const hpPct = boss.hp / boss.maxHp;
+  for (const ph of (def.phases || [])) {
+    if (hpPct <= ph.belowPct && !bs.firedThresholds['ph'+ph.belowPct]) {
+      bs.firedThresholds['ph'+ph.belowPct] = true;
+      bs.phase++;
+      addLog(`☠ ${boss.name} enters a new phase — ${ph.announce||'the air grows heavy'}!`, 'crit');
+      try { (ph.onEnter||function(){})(boss, G); } catch(e){}
+      shakeEl(boss);
+    }
+  }
+
+  // ENRAGE after N turns: permanent big ATK buff.
+  if (def.enrageTurn && bs.turnCount >= def.enrageTurn && !bs.enraged) {
+    bs.enraged = true;
+    boss.atkMod *= (def.enrageMult || 1.6);
+    addLog(`🔥 ${boss.name} ENRAGES! Its blows now devastate.`, 'crit');
+    shakeEl(boss);
+  }
+
+  // SHIELD-UP every N turns.
+  if (def.shieldEvery && bs.turnCount % def.shieldEvery === 0) {
+    boss.shield = Math.min(400, (boss.shield||0) + (def.shieldAmount || 120));
+    addLog(`🛡 ${boss.name} raises a warding shield (+${def.shieldAmount||120}).`, 'warn');
+  }
+
+  // SUMMON ADDS: refill empty back slots with adds, up to a cap.
+  if (def.addsEvery && bs.turnCount % def.addsEvery === 0 && def.add) {
+    const livingAdds = G.enemyTeam.filter(c => !c.dead && !c._isBoss).length;
+    if (livingAdds < (def.maxAdds || 2)) {
+      spawnBossAdd(def.add);
+    }
+  }
+}
+
+// Spawn one add into the enemy team (reuses mkCombatant via a mini initState path).
+function spawnBossAdd(addSpec) {
+  const norm = normalizePathEnemy(Object.assign({ synthetic:true }, addSpec));
+  // Build a combatant matching the engine's shape.
+  const clone = JSON.parse(JSON.stringify(norm));
+  const slot = Math.min(4, G.enemyTeam.length);
+  const c = {
+    ...clone, maxHp: norm.hp, shield: 0, effects: [], atkMod: 1, spdMod: 1,
+    dead: false, reviveUsed: false, isEnemy: true, firstHit: true,
+    slot, position: (slot <= 1) ? 'front' : 'back',
+    statusEffects: newStatusEffects(), furyTurns: 0, shieldMod: 1, healMod: 1,
+  };
+  G.enemyTeam.push(c);
+  addLog(`➕ ${c.name} joins the fray!`, 'warn');
+  renderBattle();
+}
+
+// Bridge so the Path module (separate file) can drive the engine + persist.
+window.__pathBridge = {
+  startPathBattle: (ids, specs, opts) => startPathBattle(ids, specs, opts),
+  getPlayer:  () => (typeof PLAYER !== 'undefined' ? PLAYER : null),
+  getSpirits: () => (typeof SPIRITS !== 'undefined' ? SPIRITS : []),
+  showScreen: (id) => (typeof showScreen === 'function' ? showScreen(id) : null),
+  showHome:   () => (typeof showHome === 'function' ? showHome() : null),
+  toast:      (...a) => (typeof toast === 'function' ? toast(...a) : undefined),
+  addLog:     (...a) => (typeof addLog === 'function' ? addLog(...a) : undefined),
+  unlockSpiritById: (id) => {
+    if (typeof PLAYER === 'undefined' || !PLAYER) return false;
+    const did = unlockSpirit(PLAYER, id);
+    if (did) { savePlayer(); persistSpiritUnlock(id); persistSpiritCards(id); }
+    return did;
+  },
+  grantGold: (n) => { if (window.__ashboundBridge) window.__ashboundBridge.persistGold(n); },
+  grantXP:   (n) => { if (window.__ashboundBridge) window.__ashboundBridge.persistXP(n); },
+  isUnlocked: (id) => (typeof PLAYER !== 'undefined' && PLAYER && PLAYER.unlocked.includes(id)),
+};
 
 
 let charsFilter = 'all';
@@ -5059,6 +5492,8 @@ function mpStartBattle() {
     G.enemyEmblem = MP.oppHello.emblem;
     applyEmblemHook('battleStart', 'enemy', { team: G.enemyTeam });
   }
+  logTeamSynergies(G.playerSynergies, 'Your');
+  logTeamSynergies(G.enemySynergies, "Opponent's");
   // initState sets G.phase = 'player'. In MP, host always goes first.
   MP._clientFirstTurn = !MP.isHost; // client hasn't taken a turn yet
   if (!MP.isHost) {
@@ -5319,6 +5754,8 @@ async function mpHostEndGame() {
 // Unified post-match screen. Used by single-player (isMp=false) and MP (isMp=true).
 // For MP, fetches the match row to recover ELO delta and refreshes PLAYER for new rank.
 async function renderMatchResult(won, isMp) {
+  // Daily-quest tracking: battle finished (win/play, element, mp).
+  if (window.DailyQuests) { try { DailyQuests.onBattleEnd(won, G); } catch (e) {} }
   const eloBlock = document.getElementById('result-elo-block');
   const banner   = document.getElementById('result-rank-banner');
   if (eloBlock) eloBlock.innerHTML = '';
@@ -5889,6 +6326,36 @@ async function boot() {
     try { await resetSession(/*reload=*/false); } catch {}
   }
 }
+
+// ── Bridge for the DailyQuests module ────────────────────────────────
+// Top-level let/const here (PLAYER, db, LOOT_CASES, …) don't attach to
+// window, so the module reaches them through these lazy accessors.
+// persistGold/persistXP mutate PLAYER then debounce-save to Supabase,
+// mirroring awardRewards()' pattern (mutate + savePlayer()).
+window.__ashboundBridge = {
+  getDb:        () => (typeof db !== 'undefined' ? db : null),
+  getLootCases: () => (typeof LOOT_CASES !== 'undefined' ? LOOT_CASES : []),
+  toast:            (...a) => (typeof toast === 'function' ? toast(...a) : undefined),
+  rollCaseContents: (...a) => (typeof rollCaseContents === 'function' ? rollCaseContents(...a) : undefined),
+  awardDrop:        (...a) => (typeof awardDrop === 'function' ? awardDrop(...a) : undefined),
+  showCaseOpening:  (...a) => (typeof showCaseOpening === 'function' ? showCaseOpening(...a) : undefined),
+  persistGold: (n) => {
+    if (typeof PLAYER === 'undefined' || !PLAYER) return;
+    PLAYER.gold = (PLAYER.gold || 0) + (n || 0);
+    try { savePlayer(); } catch (e) {}
+    try { document.querySelectorAll('.home-stats, #home-stats').forEach(el => { if (el.id === 'home-stats') el.innerHTML = statsHtml(); }); } catch (e) {}
+  },
+  persistXP: (n) => {
+    if (typeof PLAYER === 'undefined' || !PLAYER) return;
+    const oldLevel = PLAYER.level || 1;
+    PLAYER.xp = (PLAYER.xp || 0) + (n || 0);
+    PLAYER.level = levelFromXp(PLAYER.xp);
+    if (PLAYER.level > oldLevel) PLAYER.gold = (PLAYER.gold || 0) + (PLAYER.level - oldLevel) * 100;
+    try { savePlayer(); } catch (e) {}
+    try { if (document.getElementById('home-stats')) document.getElementById('home-stats').innerHTML = statsHtml(); } catch (e) {}
+  },
+};
+
 boot();
 </script>
 

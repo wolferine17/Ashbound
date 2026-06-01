@@ -1,0 +1,11 @@
+s-result show: 197,828,1176,3864,5424,5654,5822,6859
+checkDeaths def: 2961,3035,3099,3133,3218,3500,5156,5194,5213
+function endTurn: 3269
+function nextTurn: 3208
+result-again: 
+XP award: 
+gold award: 
+G.over: 
+addEventListener home: 989,994,999,1004,1009,1014,1019,1024
+home click bind: 
+all enemies dead: 2842,3221,3222,3231,3260,3501,5161,5196,5214,5237
