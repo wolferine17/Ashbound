@@ -47,7 +47,7 @@
   const BOSSES = {
     pyrelord: {
       id: 'boss_pyrelord', name: 'Ignarok, the Pyre Lord', subtitle: 'Flame · burns the unworthy',
-      emoji: '🔥', cls: 'flame', hp: 1500, atk: 105, _isBoss: true, portrait: 'Bosses/Ignarok.jpg',
+      emoji: '🔥', cls: 'flame', hp: 1500, atk: 105, _isBoss: true, portrait: 'bosses/Ignarok.jpg',
       parts: [
         bossCard('Cinder Crash', '🔥', 2, 'damage', 130, 'select_front', 'A molten fist.'),
         bossCard('Eruption', '💥', 3, 'aoe', 85, 'all', 'Scorches all foes.', [A('bleed', 1, 'allEnemies')]),
@@ -63,7 +63,7 @@
     },
     tideturl: {
       id: 'boss_tidetyrant', name: 'Voraxis, the Tide Tyrant', subtitle: 'Water · drowns all hope',
-      emoji: '🌊', cls: 'water', hp: 1700, atk: 92, _isBoss: true, portrait: 'Bosses/Voraxis.jpg',
+      emoji: '🌊', cls: 'water', hp: 1700, atk: 92, _isBoss: true, portrait: 'bosses/Voraxis.jpg',
       parts: [
         bossCard('Crushing Wave', '🌊', 2, 'damage', 120, 'select_front', 'A wall of water.', [A('weak', 2, 'target')]),
         bossCard('Maelstrom', '🌀', 3, 'aoe', 80, 'all', 'A spinning vortex.'),
@@ -77,7 +77,7 @@
     },
     stonecolossus: {
       id: 'boss_stonecolossus', name: 'Gravemaw, the Stone Colossus', subtitle: 'Earth · immovable, unending',
-      emoji: '🗿', cls: 'earth', hp: 2200, atk: 85, _isBoss: true, portrait: 'Bosses/Gravemaw.jpg',
+      emoji: '🗿', cls: 'earth', hp: 2200, atk: 85, _isBoss: true, portrait: 'bosses/Gravemaw.jpg',
       parts: [
         bossCard('Boulder Throw', '🪨', 2, 'damage', 125, 'select_front', 'Hurls a boulder.'),
         bossCard('Quake', '💢', 3, 'aoe', 75, 'all', 'The ground splits.', [A('weak', 1, 'allEnemies')]),
@@ -91,7 +91,7 @@
     },
     voidmaw: {
       id: 'boss_voidmaw', name: 'Nul\'Khareth, the Void Maw', subtitle: 'Void · devours light',
-      emoji: '🕳', cls: 'void', hp: 1800, atk: 100, _isBoss: true, portrait: "Bosses/Nul'Khareth.jpg",
+      emoji: '🕳', cls: 'void', hp: 1800, atk: 100, _isBoss: true, portrait: "bosses/Nul'Khareth.jpg",
       parts: [
         bossCard('Soul Rend', '🌑', 2, 'damage', 110, 'pierce', 'Strikes any foe.', [A('heal_block', 2, 'target')], { pierce: true }),
         bossCard('Entropy', '🌀', 3, 'aoe', 70, 'all', 'Unmakes all.', [A('vulnerable', 1, 'allEnemies')]),
@@ -110,7 +110,7 @@
     },
     stormcrown: {
       id: 'boss_stormcrown', name: 'Aetheron, the Storm Crown', subtitle: 'Storm · the final tempest',
-      emoji: '⚡', cls: 'storm', hp: 2600, atk: 110, _isBoss: true, portrait: 'Bosses/Aetheron.jpg',
+      emoji: '⚡', cls: 'storm', hp: 2600, atk: 110, _isBoss: true, portrait: 'bosses/Aetheron.jpg',
       parts: [
         bossCard('Thunderstrike', '⚡', 2, 'damage', 135, 'select_front', 'A bolt from the crown.'),
         bossCard('Tempest', '🌪', 3, 'aoe', 95, 'all', 'The sky falls.', [A('silence', 1, 'allEnemies')]),
