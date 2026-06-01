@@ -963,17 +963,17 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
 
     <div id="auth-username-row" class="auth-row hidden">
       <label>USERNAME</label>
-      <input id="auth-username" type="text" maxlength="20" autocomplete="username" spellcheck="false">
+      <input id="auth-username" type="text" maxlength="20" autocomplete="username" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();authSubmit();}">
     </div>
 
     <div class="auth-row">
       <label>EMAIL</label>
-      <input id="auth-email" type="email" autocomplete="email" spellcheck="false">
+      <input id="auth-email" type="email" autocomplete="email" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();authSubmit();}">
     </div>
 
     <div class="auth-row">
       <label>PASSWORD</label>
-      <input id="auth-password" type="password" autocomplete="current-password">
+      <input id="auth-password" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();authSubmit();}">
     </div>
 
     <button class="auth-btn" id="auth-submit" onclick="authSubmit()">ENTER THE PACT</button>
