@@ -289,6 +289,89 @@ button:active { transform:scale(0.97); }
 .home-tile-name { font-family:var(--font-d); font-size:15px; letter-spacing:3px; color:var(--text); }
 .home-tile-sub { font-size:11px; color:var(--muted); text-align:center; }
 .home-tile.play .home-tile-name { color:var(--gold); }
+
+/* ── Featured image-card home grid (prototype menu) ───────────────── */
+.home-grid {
+  width:100%; max-width:960px; margin:18px auto 0;
+  display:grid; gap:14px;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas:
+    "play path versus leader"
+    "play path versus shop";
+  height:min(46vh, 360px);
+}
+.hc-play   { grid-area:play; }
+.hc-path   { grid-area:path; }
+.hc-versus { grid-area:versus; }
+.hc-leader { grid-area:leader; }
+.hc-shop   { grid-area:shop; }
+.hcard {
+  position:relative; border-radius:16px; overflow:hidden; cursor:pointer;
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 6px 24px rgba(0,0,0,0.4);
+  transition:transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.25s var(--ease);
+}
+.hc-img {
+  position:absolute; inset:0;
+  background-size:cover; background-position:center;
+  transition:transform 0.5s var(--ease), filter 0.4s var(--ease);
+  filter:saturate(0.9) brightness(0.82);
+}
+.hc-shade {
+  position:absolute; inset:0;
+  background:linear-gradient(to top, rgba(8,4,18,0.88) 0%, rgba(8,4,18,0.25) 45%, rgba(8,4,18,0) 70%);
+  transition:opacity 0.3s var(--ease);
+}
+.hcard:hover { transform:translateY(-4px); border-color:rgba(155,111,232,0.55); box-shadow:0 12px 36px rgba(155,111,232,0.3); }
+.hcard:hover .hc-img { transform:scale(1.10); filter:saturate(1.1) brightness(1); }   /* the zoom */
+.hc-label {
+  position:absolute; left:16px; bottom:14px; z-index:2;
+  font-family:var(--font-d); font-size:22px; letter-spacing:3px; color:#fff;
+  display:flex; align-items:center; gap:8px;
+  text-shadow:0 2px 10px rgba(0,0,0,0.9); pointer-events:none;
+}
+.hc-label.sm { font-size:15px; letter-spacing:2px; left:12px; bottom:10px; }
+.hc-ic { font-size:0.85em; filter:drop-shadow(0 0 6px var(--purple-glow)); }
+.hc-play .hc-label { font-size:30px; }
+.hc-play .hc-label .hc-ic { color:var(--gold); }
+.hc-tag {
+  position:absolute; top:12px; right:12px; z-index:2;
+  font-family:var(--font-d); font-size:9px; letter-spacing:2px; color:#1a1206;
+  background:linear-gradient(135deg,var(--gold-bright),var(--gold));
+  padding:3px 10px; border-radius:50px; box-shadow:0 0 12px var(--gold-glow);
+}
+/* daily notification dot for the secondary row */
+.hlink .dq-badge { position:absolute; top:-6px; right:-6px; }
+
+/* ── Secondary utility row ─────────────────────────────────────────── */
+.home-links {
+  width:100%; max-width:960px; margin:16px auto 0;
+  display:flex; gap:10px; justify-content:center; flex-wrap:wrap;
+}
+.hlink {
+  position:relative; display:flex; align-items:center; gap:8px;
+  background:var(--surface); border:1px solid var(--border); border-radius:50px;
+  padding:9px 18px; cursor:pointer; transition:all 0.2s var(--ease);
+  font-family:var(--font-d); font-size:12px; letter-spacing:2px; color:var(--muted);
+}
+.hlink:hover { border-color:rgba(155,111,232,0.5); color:var(--text); transform:translateY(-2px); box-shadow:0 4px 16px rgba(155,111,232,0.18); }
+.hl-ic { font-size:16px; }
+.home-footer { width:100%; text-align:center; margin:22px auto 4px; font-family:var(--font-d); font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.22); }
+
+@media (max-width:720px) {
+  .home-grid {
+    height:auto;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 160px 120px 120px;
+    grid-template-areas:
+      "play play"
+      "path versus"
+      "leader shop";
+  }
+  .hc-play .hc-label { font-size:24px; }
+}
+
 .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:32px; background:var(--surface2); border:1px solid var(--gold); border-radius:50px; padding:10px 22px; font-family:var(--font-d); font-size:13px; letter-spacing:2px; color:var(--gold); box-shadow:0 0 24px var(--gold-glow); z-index:500; opacity:0; transition:opacity 0.3s var(--ease), transform 0.3s var(--ease); pointer-events:none; }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(-6px); }
 
@@ -1003,58 +1086,46 @@ body.battle-3d-active .c-name { text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
     <img class="brand-logo size-home" src="logo/Logo.png" alt="Ashbound" onerror="this.outerHTML='<div class=&quot;home-brand&quot;>ASHBOUND</div>'">
     <div class="home-stats" id="home-stats"></div>
   </div>
-  <div class="home-tiles">
-    <div class="home-tile play" onclick="showDraft()">
-      <div class="home-tile-ic">⚔</div>
-      <div class="home-tile-name">PLAY</div>
-      <div class="home-tile-sub">Enter the Arena</div>
+  <!-- Featured image-card grid (hover to zoom). Images live in menu/*.jpg -->
+  <div class="home-grid">
+    <div class="hcard hc-play" onclick="showDraft()">
+      <div class="hc-img" style="background-image:url('menu/Play.jpg')"></div>
+      <div class="hc-shade"></div>
+      <div class="hc-tag">FEATURED</div>
+      <div class="hc-label"><span class="hc-ic">⚔</span>PLAY</div>
     </div>
-    <div class="home-tile" id="home-daily" onclick="DailyQuests.openPanel()" style="border-color:rgba(232,197,106,0.45);position:relative;">
-      <div class="home-tile-ic">🎁</div>
-      <div class="home-tile-name" style="color:var(--gold);">DAILY</div>
-      <div class="home-tile-sub">Quests &amp; login rewards</div>
+    <div class="hcard hc-path" onclick="PathExpedition.open()">
+      <div class="hc-img" style="background-image:url('menu/Path.jpg')"></div>
+      <div class="hc-shade"></div>
+      <div class="hc-label"><span class="hc-ic">🗺</span>PATH</div>
     </div>
-    <div class="home-tile" id="home-path" onclick="PathExpedition.open()" style="border-color:rgba(232,85,79,0.4);">
-      <div class="home-tile-ic">🗺</div>
-      <div class="home-tile-name" style="color:#e8857f;">PATH</div>
-      <div class="home-tile-sub">25-node expedition</div>
+    <div class="hcard hc-versus" onclick="showMpLobby()">
+      <div class="hc-img" style="background-image:url('menu/Versus.jpg')"></div>
+      <div class="hc-shade"></div>
+      <div class="hc-label"><span class="hc-ic">🌐</span>VERSUS</div>
     </div>
-    <div class="home-tile" onclick="showMpLobby()" style="border-color:rgba(61,232,197,0.35);">
-      <div class="home-tile-ic">🌐</div>
-      <div class="home-tile-name" style="color:var(--teal);">VERSUS</div>
-      <div class="home-tile-sub">Play a friend online</div>
+    <div class="hcard hc-leader" onclick="showLeaderboard()">
+      <div class="hc-img" style="background-image:url('menu/Leaderboard.jpg')"></div>
+      <div class="hc-shade"></div>
+      <div class="hc-label sm"><span class="hc-ic">🏆</span>LEADERBOARD</div>
     </div>
-    <div class="home-tile" onclick="showCollection()">
-      <div class="home-tile-ic">📜</div>
-      <div class="home-tile-name">COLLECTION</div>
-      <div class="home-tile-sub">Manage your spirits</div>
-    </div>
-    <div class="home-tile" onclick="showShop()">
-      <div class="home-tile-ic">🪙</div>
-      <div class="home-tile-name">SHOP</div>
-      <div class="home-tile-sub">Unlock new spirits</div>
-    </div>
-    <div class="home-tile" onclick="showProfile()">
-      <div class="home-tile-ic">⭐</div>
-      <div class="home-tile-name">PROFILE</div>
-      <div class="home-tile-sub">Level &amp; progression</div>
-    </div>
-    <div class="home-tile" onclick="showEmblems()" style="border-color:rgba(155,111,232,0.4);">
-      <div class="home-tile-ic">🏅</div>
-      <div class="home-tile-name" style="color:var(--purple);">EMBLEMS</div>
-      <div class="home-tile-sub">Equip a deck-wide buff</div>
-    </div>
-    <div class="home-tile" onclick="showLeaderboard()" style="border-color:rgba(232,197,106,0.35);">
-      <div class="home-tile-ic">🏆</div>
-      <div class="home-tile-name" style="color:var(--gold);">LEADERBOARD</div>
-      <div class="home-tile-sub">Top spirit callers</div>
-    </div>
-    <div class="home-tile" onclick="showChars()">
-      <div class="home-tile-ic">📖</div>
-      <div class="home-tile-name">CODEX</div>
-      <div class="home-tile-sub">All 48 spirits</div>
+    <div class="hcard hc-shop" onclick="showShop()">
+      <div class="hc-img" style="background-image:url('menu/Shop.jpg')"></div>
+      <div class="hc-shade"></div>
+      <div class="hc-label sm"><span class="hc-ic">🪙</span>SHOP</div>
     </div>
   </div>
+
+  <!-- Secondary utility row -->
+  <div class="home-links">
+    <div class="hlink" onclick="showCollection()"><span class="hl-ic">📜</span>COLLECTION</div>
+    <div class="hlink" onclick="showEmblems()"><span class="hl-ic">🏅</span>EMBLEMS</div>
+    <div class="hlink" onclick="showProfile()"><span class="hl-ic">⭐</span>PROFILE</div>
+    <div class="hlink" onclick="showChars()"><span class="hl-ic">📖</span>CODEX</div>
+    <div class="hlink" id="home-daily" onclick="DailyQuests.openPanel()"><span class="hl-ic">🎁</span>DAILY</div>
+  </div>
+
+  <div class="home-footer">© ASHBOUND · SPIRITS OF THE ASHEN REALM</div>
 </div>
 
 <!-- COLLECTION -->
@@ -7365,7 +7436,7 @@ boot();
    ════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
-  var BTN_SEL = '.title-btn,.btn-end,.result-btn,.auth-btn,.draft-confirm,.filter-btn,.btn-back,.btn-forfeit,.btn-cancel,.case-buy,.shop-buy,.home-tile,.result-btn';
+  var BTN_SEL = '.title-btn,.btn-end,.result-btn,.auth-btn,.draft-confirm,.filter-btn,.btn-back,.btn-forfeit,.btn-cancel,.case-buy,.shop-buy,.hlink,.result-btn';
 
   // ── Click ripple (delegated; works for dynamically rendered buttons too) ──
   document.addEventListener('mousedown', function (e) {
@@ -7387,7 +7458,7 @@ boot();
 
   // ── Magnetic pull (subtle) on big tiles/buttons. Folds the intended
   //    hover lift into the transform so CSS hover isn't lost. ──
-  var MAG_SEL = '.home-tile,.title-btn,.result-btn';
+  var MAG_SEL = '.hlink,.title-btn,.result-btn';
   function bindMagnet(el) {
     el.addEventListener('mousemove', function (e) {
       var r = el.getBoundingClientRect();
