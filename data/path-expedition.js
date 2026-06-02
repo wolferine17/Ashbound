@@ -480,7 +480,8 @@
       body = `<h4>☠ ${b.name}</h4>`;
       if (b.portrait) body += `<img src="${b.portrait}" class="pnd-boss-art" alt="${b.name}" onerror="this.style.display='none'">`;
       body += `<p><b>${b.subtitle}</b><br>A mighty boss with ${b.hp} HP and deadly phase mechanics.</p>`;
-      body += `<p style="color:#e8a23f;">Your spirits carry their current HP into this fight — heal up beforehand!</p>`;
+      body += `<p style="color:#e8a23f;">Your spirits carry their current HP into this fight.</p>`;
+      if (n.depth < 25) body += `<p style="color:#7affb0;">Win and your whole team — even the fallen — is fully restored for the next tier.</p>`;
       if (n.modifiers.length) body += `<p class="pnd-mods">Raid modifiers: ${n.modifiers.map(x => MOD_LABEL[x]).join(', ')}</p>`;
       body += `<button class="path-go-btn boss" id="path-go">CHALLENGE THE BOSS</button>`;
     } else {
@@ -559,15 +560,24 @@
     if (P().grantGold) P().grantGold(baseGold);
     if (P().grantXP) P().grantXP(n.type === 'boss' ? 120 : 40);
     RUN.reachedDepth = Math.max(RUN.reachedDepth, n.depth);
-    saveRun();
 
     if (n.depth >= 25) { return finishRun(true, idx); }
+
+    // Defeating a tier boss (depth 5/10/15/20) fully restores the WHOLE team —
+    // downed spirits return to life at full HP for the start of the next tier.
+    let bossCleared = false;
+    if (n.type === 'boss') {
+      RUN.team.forEach(id => { RUN.teamHp[id] = 1; });
+      bossCleared = true;
+    }
+    saveRun();
 
     showPathScreen();
     ensureUI();
     renderRunMap();
-    document.getElementById('path-node-detail').innerHTML =
-      `<h4>✦ ${n.title} cleared!</h4><p>+${baseGold} gold, +${baseShard} shards. Choose your next path.</p>`;
+    document.getElementById('path-node-detail').innerHTML = bossCleared
+      ? `<h4>☠ ${BOSSES[n.bossKey] ? BOSSES[n.bossKey].name : n.title} defeated!</h4><p>+${baseGold} gold, +${baseShard} shards.<br><span style="color:#7affb0;">✦ Your fallen spirits return to life — the whole team is restored to full HP for the next tier!</span></p>`
+      : `<h4>✦ ${n.title} cleared!</h4><p>+${baseGold} gold, +${baseShard} shards. Choose your next path.</p>`;
   }
 
   // ── Run end (victory or defeat) ────────────────────────────────────
