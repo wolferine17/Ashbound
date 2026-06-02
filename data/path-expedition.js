@@ -18,7 +18,7 @@
 (function () {
   'use strict';
 
-  const MAP_VERSION = 3;   // bump when generateMap layout changes (invalidates old saves)
+  const MAP_VERSION = 4;   // bump when generateMap layout changes (invalidates old saves)
 
   function P() { return window.__pathBridge || {}; }
   function toast(m) { const f = P().toast; if (f) try { f(m); } catch (e) {} }
@@ -150,31 +150,45 @@
   // 25 nodes in 5 tiers of 5. Each non-boss tier offers a branching choice
   // (the player picks 1 of up to 2 reachable nodes); every 5th node is a boss
   // that all branches converge on.
-  const NODE_TYPES_NORMAL = ['battle', 'battle', 'elite', 'rest', 'reward'];
+  // Per-tier node templates (5 positions each). Each entry:
+  //   { type:'battle', count:N }     → fight N enemy spirits
+  //   { type:'rest',   heal:0..1 }   → surviving spirits recover that % of max HP
+  //   { type:'boss' }                → the tier's boss
+  // NOTE: there is NO automatic heal when entering a boss — the explicit rest
+  // nodes are the only healing, exactly as authored below.
+  const B = (count) => ({ type: 'battle', count });
+  const REST = (heal) => ({ type: 'rest', heal });
+  const BOSS = { type: 'boss' };
+  const TIER_TEMPLATES = [
+    // Tier 0 — levels 1-5
+    [ B(2), REST(0.5), B(3), REST(0.25), BOSS ],
+    // Tier 1 — levels 6-10 (same as tier 0)
+    [ B(2), REST(0.5), B(3), REST(0.25), BOSS ],
+    // Tier 2 — levels 11-15
+    [ B(2), B(3), REST(1.0), B(3), BOSS ],
+    // Tier 3 — levels 16-20 (same as tier 2)
+    [ B(2), B(3), REST(1.0), B(3), BOSS ],
+    // Tier 4 — levels 21-25
+    [ B(3), REST(0.5), B(2), B(3), BOSS ],
+  ];
+
   function generateMap(seed) {
     const rng = makeRng(seed);
     const nodes = [];
-    // Fixed per-tier layout (5 nodes per tier, position 0-4):
-    //   0: battle vs 3 spirits
-    //   1: REST — surviving spirits recover 50% HP (downed stay downed)
-    //   2: battle vs 3 spirits
-    //   3: battle vs 3 spirits
-    //   4: boss — survivors fully healed on entry (downed stay downed), then fight
     for (let i = 0; i < 25; i++) {
       const depth = i + 1;
       const tier = Math.floor(i / 5);            // 0..4
       const pos = i % 5;                          // position within the tier
-      let type;
-      if (pos === 4) type = 'boss';
-      else if (pos === 1) type = 'rest';
-      else type = 'battle';                       // pos 0, 2, 3
+      const tpl = TIER_TEMPLATES[tier][pos];
+      const type = tpl.type;
       const isBoss = type === 'boss';
       const node = {
         idx: i, depth, type, tier,
         cleared: false,
         col: isBoss ? 1 : (i % 2),
         modifiers: [],
-        enemyCount: isBoss ? 1 : 3,               // every approach battle = 3 spirits
+        enemyCount: isBoss ? 1 : (tpl.count || 3),
+        restHeal: type === 'rest' ? tpl.heal : null,
         title: '',
         bossKey: isBoss ? BOSS_ORDER[tier] : null,
       };
@@ -455,7 +469,8 @@
     const detail = document.getElementById('path-node-detail');
     let body = `<h4>${nodeIcon(n)} ${n.title}</h4>`;
     if (n.type === 'rest') {
-      body += `<p>A safe wayshrine. Surviving spirits recover <b>50% HP</b>. (Downed spirits cannot be revived here — only a boss-gate fully restores survivors.)</p>
+      const healPct = Math.round((n.restHeal != null ? n.restHeal : 0.5) * 100);
+      body += `<p>A safe wayshrine. Surviving spirits recover <b>${healPct}% HP</b>. (Downed spirits cannot be revived here.)</p>
         <button class="path-go-btn" id="path-go">REST HERE</button>`;
     } else if (n.type === 'reward') {
       body += `<p>A cache of spirit-essence. Claim gold + shards without a fight.</p>
@@ -465,7 +480,7 @@
       body = `<h4>☠ ${b.name}</h4>`;
       if (b.portrait) body += `<img src="${b.portrait}" class="pnd-boss-art" alt="${b.name}" onerror="this.style.display='none'">`;
       body += `<p><b>${b.subtitle}</b><br>A mighty boss with ${b.hp} HP and deadly phase mechanics.</p>`;
-      body += `<p style="color:#7affb0;">Surviving spirits are fully healed before this fight (downed spirits stay down).</p>`;
+      body += `<p style="color:#e8a23f;">Your spirits carry their current HP into this fight — heal up beforehand!</p>`;
       if (n.modifiers.length) body += `<p class="pnd-mods">Raid modifiers: ${n.modifiers.map(x => MOD_LABEL[x]).join(', ')}</p>`;
       body += `<button class="path-go-btn boss" id="path-go">CHALLENGE THE BOSS</button>`;
     } else {
@@ -485,13 +500,14 @@
     RUN.pendingNodeIdx = idx;
     saveRun();
     if (n.type === 'rest') {
-      // Surviving spirits recover +50% of max HP (capped at full). Downed stay downed.
+      // Surviving spirits recover +(restHeal)% of max HP (capped at full). Downed stay downed.
+      const heal = (n.restHeal != null) ? n.restHeal : 0.5;
       RUN.team.forEach(id => {
         const cur = (RUN.teamHp[id] != null) ? RUN.teamHp[id] : 1;
-        if (cur > 0) RUN.teamHp[id] = Math.min(1, cur + 0.5);
+        if (cur > 0) RUN.teamHp[id] = Math.min(1, cur + heal);
       });
       n.cleared = true; RUN.pos = idx;
-      toast('🏕 Surviving spirits recover 50% HP.');
+      toast(`🏕 Surviving spirits recover ${Math.round(heal * 100)}% HP.`);
       saveRun(); renderRunMap();
       return;
     }
@@ -513,12 +529,8 @@
     const specs = buildEnemySpecs(n);
     const boss = n.type === 'boss' ? BOSSES[n.bossKey].mechanics : null;
     const bossDef = n.type === 'boss' ? Object.assign({ name: BOSSES[n.bossKey].name }, BOSSES[n.bossKey].mechanics) : null;
-
-    // Entering a BOSS fully heals surviving spirits (downed stay downed).
-    if (n.type === 'boss') {
-      RUN.team.forEach(id => { if ((RUN.teamHp[id] != null ? RUN.teamHp[id] : 1) > 0) RUN.teamHp[id] = 1; });
-      saveRun();
-    }
+    // No automatic heal on boss entry — the explicit rest nodes are the only
+    // healing, so the carry-over HP from the prior rest carries into the boss.
 
     if (!P().startPathBattle) { toast('Path engine unavailable'); return; }
     P().startPathBattle(RUN.team, specs, {
